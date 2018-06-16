@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - MultiTag
+  - Ladder
+  - Slide
+  - Interactable
+  - NonGrabbable
+  - Water
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - Ground_Generic
+  - Ground_Entities
+  - Ground_Props
+  - Ground_Opaque_Permeable
+  - Ground_Transparent_Solid
+  - Ground_Transparent_Permeable
+  - Air_Opaque_Permeable
+  - Air_Transparent_Solid
+  - Player
+  - Prop
+  - SmallProp
+  - WaterTrigger
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - BulletCast
+  - ViewCast
+  - InteractCast
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0

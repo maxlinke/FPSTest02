@@ -8,14 +8,14 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 	//TODO replace every foreach with a nice little int count = <list>.count ... for(int i=0; i<count; i++) ... <list>[i]...
 	//TODO look for if(x.mag > y.mag) NO OTHER THINGS and replace them with sqmag.
 
-	public GameObject head;
-	public CapsuleCollider col;
-	public Rigidbody rb;
-	public PlayerHealthSystem healthSystem;
-	public GameObject waterTrigger;
+	[Header("Components")]
+	[SerializeField] GameObject head;
+	[SerializeField] CapsuleCollider col;
+	[SerializeField] Rigidbody rb;
+	[SerializeField] PlayerHealthSystem healthSystem;
+	[SerializeField] PlayerWaterTriggerScript waterTrigger;
 
-	private PhysicMaterial pm;
-	private PlayerWaterTriggerScript waterTriggerScript;
+	PhysicMaterial pm;
 
 	DoubleKey keyMoveForward;
 	DoubleKey keyMoveBackward;
@@ -29,81 +29,81 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 	DoubleKey keySprintHold;
 
 	[Header("Movement parameters")]
-	public float moveSpeedRegular;
-	public float moveSpeedCrouch;
-	public float moveSpeedSprint;
-	public float moveAcceleration;
-	public float moveJumpHeight;
-	public float moveMaxSlopeAngle;
-	public float moveMaxStepOffset;
-	public float moveSlideControl;
-	public float moveAirControl;
+	[SerializeField] float moveSpeedRegular = 8f;
+	[SerializeField] float moveSpeedCrouch = 4f;
+	[SerializeField] float moveSpeedSprint = 12f;
+	[SerializeField] float moveAcceleration = 256f;
+	[SerializeField] float moveJumpHeight = 1.5f;
+	[SerializeField] float moveMaxSlopeAngle = 55f;
+	[SerializeField] float moveMaxStepOffset = 0.3f;
+	[SerializeField] float moveSlideControl = 12f;
+	[SerializeField] float moveAirControl = 4f;
 
 	[Header("Other parameters")]
-	//public float sprintDuration;
-	//public float sprintCooldown;
-	//public float sprintRegeneration;
-	public float crouchHeight;
-	public float normalHeight;
-	public float crouchEyeLevel;
-	public float normalEyeLevel;
-	public float normalGravity;
-	public float normalStaticFriction;
-	public float normalDynamicFriction;
-	public float normalWaterTriggerPos;
-	public float crouchWaterTriggerPos;
+//	[SerializeField] float sprintDuration;
+//	[SerializeField] float sprintCooldown;
+//	[SerializeField] float sprintRegeneration;
+	[SerializeField] float crouchHeight = 0.9f;
+	[SerializeField] float normalHeight = 1.9f;
+	[SerializeField] float crouchEyeLevel = 0.8f;
+	[SerializeField] float normalEyeLevel = 1.8f;
+	[SerializeField] float normalGravity = 29.43f;
+	[SerializeField] float normalStaticFriction = 0.5f;
+	[SerializeField] float normalDynamicFriction = 0.5f;
+	[SerializeField] float normalWaterTriggerPos = 1.6f;
+	[SerializeField] float crouchWaterTriggerPos = 0.7f;
 
-	private List<ContactPoint> contactPoints;
-	private List<ContactPoint> wallPoints;
-	private List<ContactPoint> stepPoints;
-	private ContactPoint surfacePoint;
-	private Vector3 surfaceNormal;
-	private float surfaceAngle;
+	List<ContactPoint> contactPoints;
+	List<ContactPoint> wallPoints;
+	List<ContactPoint> stepPoints;
+	ContactPoint surfacePoint;
+	Vector3 surfaceNormal;
+	float surfaceAngle;
 
-	private Vector3 inputVector;
-	private Vector3 gravityVector;
+	Vector3 inputVector;
+	Vector3 gravityVector;
 
-	private bool gotMoveInput;
+	bool gotMoveInput;
 
-	private Vector3 desiredDirection;	//normalized, only direction
-	private Vector3 desiredVector;		//magnitude is important
-	private float desiredSpeed;
+	Vector3 desiredDirection;	//normalized, only direction
+	Vector3 desiredVector;		//magnitude is important
+	float desiredSpeed;
 
-	private bool isGrounded;
-	private bool isOnValidGround;
-	private bool isOnSolidGround;
-	private bool isOnLadder;
-	private bool isInWater;
-	private bool isSwimming;
+	bool isGrounded;
+	bool isOnValidGround;
+	bool isOnSolidGround;
+	bool isOnLadder;
+	bool isInWater;
+	bool isSwimming;
 
-	private bool wasOnSolidGround;
-	private bool wasGrounded;
+	bool wasOnSolidGround;
+	bool wasGrounded;
 
-	private bool isCrouching;
-	private bool wasCrouching;
+	bool isCrouching;
+	bool wasCrouching;
 
-	private bool isSprinting;
-	private bool wasSprinting;
-	//private float sprintTimer;
-	//private float sprintCooldownTimer;
+	bool isSprinting;
+	bool wasSprinting;
+//	float sprintTimer;
+//	float sprintCooldownTimer;
 
-	private Vector3 footObjectVelocity;
-	private Vector3 ownVelocity;
+	Vector3 footObjectVelocity;
+	Vector3 ownVelocity;
 
-	private Vector3 jumpVelocity;
-	private bool justJumped;
-	private bool velocityComesFromMove;
+	Vector3 jumpVelocity;
+	bool justJumped;
+	bool velocityComesFromMove;
 
-	private Vector3 lastVelocity;
-	private Vector3 lastOwnVelocity;
-	private Vector3 lastValidGroundSpeed;
-	private Vector3 lastSurfaceNormal;
-	private Vector3 lastSurfacePoint;
+	Vector3 lastVelocity;
+	Vector3 lastOwnVelocity;
+	Vector3 lastValidGroundSpeed;
+	Vector3 lastSurfaceNormal;
+	Vector3 lastSurfacePoint;
 
-	private Vector3 ladderNormal;
+	Vector3 ladderNormal;
 
-	private int layermaskPlayer;
-	private int layerWater;
+	int layermaskPlayer;
+	int layerWater;
 
 	void Start(){
 		AddSelfToPlayerPrefObserverList();
@@ -115,7 +115,6 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		layermaskPlayer = GetLayerMask(LayerMask.NameToLayer("Player"));
 		layerWater = LayerMask.NameToLayer("Water");
 		jumpVelocity = new Vector3(0f, Mathf.Sqrt(2 * normalGravity * moveJumpHeight), 0f);	//eeehhh... this might need a special kind of treatment in case moveJumpHeight gets changed...
-		waterTriggerScript = waterTrigger.GetComponent<PlayerWaterTriggerScript>();
 		col.center = new Vector3(0f, col.height/2f, 0f);	//just making sure. before i had the height at 1.9 and the center at 0.9 (should be 0.95) which caused some problems that could only be solved by crouching and uncrouching
 		//float stepOffsetAngle = Mathf.Rad2Deg * Mathf.Acos(1f - (moveMaxStepOffset / col.radius));
 		//float slopeAngleOffset = col.radius * (1f - Mathf.Cos(Mathf.Deg2Rad * moveMaxSlopeAngle));
@@ -143,7 +142,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		LoadKeys();
 	}
 
-	private void LoadKeys(){
+	void LoadKeys(){
 		keyMoveForward = DoubleKey.FromPlayerPrefs("key_move_forward");
 		keyMoveBackward = DoubleKey.FromPlayerPrefs("key_move_backward");
 		keyMoveLeft = DoubleKey.FromPlayerPrefs("key_move_left");
@@ -156,7 +155,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		keySprintHold = DoubleKey.FromPlayerPrefs("key_sprint_hold");
 	}
 
-	private void InitializeFixedUpdate(){
+	void InitializeFixedUpdate(){
 		ManageCollisions();
 		DetermineIsStates();
 		ManageFallDamage();
@@ -164,13 +163,13 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		gotMoveInput = inputVector.magnitude > 0f;
 	}
 
-	private void ManageFallDamage(){	//this is not good practice but otherwise the health system would have to implement collision detection and managing too (as in knowing that i was airborne and now i'm not etc)
+	void ManageFallDamage(){	//this is not good practice but otherwise the health system would have to implement collision detection and managing too (as in knowing that i was airborne and now i'm not etc)
 		if(!wasGrounded && isOnValidGround && !isOnLadder){
 			healthSystem.NotifyOfFallDamage(lastVelocity, rb.velocity);
 		}
 	}
 
-	private void ManageCollisions(){
+	void ManageCollisions(){
 		RemoveBadContactPoints();
 		surfacePoint = GetSurfacePoint(contactPoints);
 		surfaceNormal = surfacePoint.normal;
@@ -179,7 +178,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		StepUpSteps();
 	}
 
-	private void RemoveBadContactPoints(){
+	void RemoveBadContactPoints(){
 		List<ContactPoint> removePoints = new List<ContactPoint>();
 		foreach(ContactPoint point in contactPoints){
 			if(point.otherCollider == null) removePoints.Add(point);
@@ -189,7 +188,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		}
 	}
 
-	private void DetermineWallAndStepPoints(){
+	void DetermineWallAndStepPoints(){
 		foreach(ContactPoint point in contactPoints){
 			float pointAngle = Vector3.Angle(point.normal, Vector3.up);
 			//float pointOffset = col.radius * (1f - Vector3.Dot(point.normal, Vector3.up));
@@ -288,7 +287,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		isOnSolidGround = GetIsOnSolidGround();
 		isOnValidGround = GetIsOnValidGround();
 		isOnLadder = GetIsOnLadder();
-		isInWater = waterTriggerScript.isInWater;
+		isInWater = waterTrigger.isInWater;
 		isSwimming = GetIsSwimming();
 	}
 
@@ -369,9 +368,9 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		//TODO not "sliding" when on the surface and holding space
 
 		if(ownVelocity.y > 0){
-			if((waterTrigger.transform.position + (ownVelocity * Time.fixedDeltaTime)).y > waterTriggerScript.waterLevel){
+			if((waterTrigger.transform.position + (ownVelocity * Time.fixedDeltaTime)).y > waterTrigger.waterLevel){
 				if(ownVelocity.y <= moveSpeedCrouch){
-					float distanceToTop = waterTriggerScript.waterLevel - waterTrigger.transform.position.y;
+					float distanceToTop = waterTrigger.waterLevel - waterTrigger.transform.position.y;
 					ownVelocity = Horizontalize(ownVelocity) + (Vector3.up * Mathf.Clamp((distanceToTop / Time.fixedDeltaTime), 0, Mathf.Infinity));
 				}
 				if(keyJump.GetKey()){
@@ -662,7 +661,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 
 	private bool GetIsSwimming(){
 		if(!isInWater) return false;
-		float waterLevel = waterTriggerScript.waterLevel;
+		float waterLevel = waterTrigger.waterLevel;
 		if(waterTrigger.transform.position.y < waterLevel && !isOnLadder) return true;
 		if(isOnValidGround) return false;
 		return true;

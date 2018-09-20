@@ -361,7 +361,6 @@ MonoBehaviour:
   head: {fileID: 1604590647030996}
   flashLight: {fileID: 1909715187756806}
   holsterLock: 0
-  prefab: {fileID: 0}
 --- !u!114 &114876498455462304
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -390,7 +389,7 @@ MonoBehaviour:
   col: {fileID: 136462737927010832}
   rb: {fileID: 54775920671683162}
   healthSystem: {fileID: 114501187207112260}
-  waterTrigger: {fileID: 1167628598469492}
+  waterTrigger: {fileID: 114876498455462304}
   moveSpeedRegular: 8
   moveSpeedCrouch: 4
   moveSpeedSprint: 12

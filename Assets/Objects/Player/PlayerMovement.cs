@@ -8,6 +8,35 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 	//TODO replace every foreach with a nice little int count = <list>.count ... for(int i=0; i<count; i++) ... <list>[i]...
 	//TODO look for if(x.mag > y.mag) NO OTHER THINGS and replace them with sqmag.
 
+	class SurfacePoint {
+
+		public readonly Vector3 point;
+		public readonly Vector3 normal;
+		public readonly Collider otherCollider;
+		public readonly float angle;
+		public readonly ContactPoint originalContactPoint;
+		public readonly bool isSynthetic;		//is the "originalContactPoint" an actual contact point or just a new ("empty") struct?
+
+		public SurfacePoint (ContactPoint contactPoint) {
+			this.point = contactPoint.point;
+			this.normal = contactPoint.normal;
+			this.otherCollider = contactPoint.otherCollider;
+			this.angle = Vector3.Angle(contactPoint.normal, Vector3.up);
+			this.originalContactPoint = contactPoint;
+			this.isSynthetic = false;
+		}
+
+		public SurfacePoint (Vector3 point, Vector3 normal, Collider otherCollider) {
+			this.point = point;
+			this.normal = normal;
+			this.otherCollider = otherCollider;
+			this.angle = Vector3.Angle(normal, Vector3.up);
+			this.originalContactPoint = new ContactPoint();
+			this.isSynthetic = true;
+		}
+
+	}
+
 	[Header("Components")]
 	[SerializeField] GameObject head;
 	[SerializeField] CapsuleCollider col;
@@ -60,12 +89,12 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 	Vector3 surfaceNormal;
 	float surfaceAngle;
 
-	Vector3 inputVector;
+//	Vector3 inputVector;
 	Vector3 gravityVector;
 
 	bool gotMoveInput;
 
-	Vector3 desiredDirection;	//normalized, only direction
+//	Vector3 desiredDirection;	//normalized, only direction
 	Vector3 desiredVector;		//magnitude is important
 	float desiredSpeed;
 
@@ -104,6 +133,28 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 
 	int layermaskPlayer;
 	int layerWater;
+
+	void Reset () {
+		moveSpeedRegular = 8f;
+		moveSpeedCrouch = 4f;
+		moveSpeedSprint = 12f;
+		moveAcceleration = 256f;
+		moveJumpHeight = 1.5f;
+		moveMaxSlopeAngle = 55f;
+		moveMaxStepOffset = 0.3f;
+		moveSlideControl = 12f;	//TODO even i don't understand these values fully. but they do work wonderfully...
+		moveAirControl = 4f;
+
+		crouchHeight = 0.9f;
+		normalHeight = 1.9f;
+		crouchEyeLevel = 0.8f;	//TODO maybe work with an eyeoffset variable?
+		normalEyeLevel = 1.8f;
+		normalGravity = 29.43f;
+		normalStaticFriction = 0.5f;
+		normalDynamicFriction = 0.5f;
+		normalWaterTriggerPos = 1.6f;	//TODO maybe make the watertrigger be related to the head?
+		crouchWaterTriggerPos = 0.7f;
+	}
 
 	void Start(){
 		AddSelfToPlayerPrefObserverList();
@@ -159,8 +210,6 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		ManageCollisions();
 		DetermineIsStates();
 		ManageFallDamage();
-		inputVector = GetInputVector();
-		gotMoveInput = inputVector.magnitude > 0f;
 	}
 
 	void ManageFallDamage(){	//this is not good practice but otherwise the health system would have to implement collision detection and managing too (as in knowing that i was airborne and now i'm not etc)
@@ -170,21 +219,28 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 	}
 
 	void ManageCollisions(){
-		RemoveBadContactPoints();
+		RemoveInvalidContactPoints(ref contactPoints);
 		surfacePoint = GetSurfacePoint(contactPoints);
 		surfaceNormal = surfacePoint.normal;
 		surfaceAngle = Vector3.Angle(surfaceNormal, Vector3.up);
+//		SurfacePoint surfacePoint = GetSurfacePointNEW(contactPoints);
 		DetermineWallAndStepPoints();
 		StepUpSteps();
 	}
 
-	void RemoveBadContactPoints(){
-		List<ContactPoint> removePoints = new List<ContactPoint>();
-		foreach(ContactPoint point in contactPoints){
-			if(point.otherCollider == null) removePoints.Add(point);
-		}
-		foreach(ContactPoint point in removePoints){
-			contactPoints.Remove(point);
+	void RemoveInvalidContactPoints (ref List<ContactPoint> contactPoints) {
+//		List<ContactPoint> removePoints = new List<ContactPoint>();
+//		foreach(ContactPoint point in contactPoints){
+//			if(point.otherCollider == null) removePoints.Add(point);
+//		}
+//		foreach(ContactPoint point in removePoints){
+//			contactPoints.Remove(point);
+//		}
+		for(int i=0; i<contactPoints.Count; i++){
+			if(contactPoints[i].otherCollider == null){
+				contactPoints.RemoveAt(i);
+				i--;
+			}
 		}
 	}
 
@@ -291,20 +347,22 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		isSwimming = GetIsSwimming();
 	}
 
-	private void FixedUpdateMovement(){
+	private void FixedUpdateMovement () {
+		Vector3 rawInput = GetInputVector();
+		gotMoveInput = rawInput.magnitude > 0f;
 		gravityVector = Vector3.down;
 		footObjectVelocity = GetFootObjectVelocity();
 		ownVelocity = GetOwnVelocity();
 		if(ownVelocity.magnitude > lastOwnVelocity.magnitude) velocityComesFromMove = false;
 		//crouchheightmanager is here in the original
-		if(isOnLadder) LadderMovement();
+		if(isOnLadder) LadderMovement(rawInput);
 		else{
-			if(isSwimming) WaterMovement();
+			if(isSwimming) WaterMovement(rawInput);
 			else{
-				desiredDirection = GetDesiredDirection();
+//				desiredDirection = GetDesiredDirection();
 				desiredSpeed = GetDesiredSpeed();
-				if(isGrounded) GroundedMovement();
-				else AirborneMovement();
+				if(isGrounded) GroundedMovement(rawInput);
+				else AirborneMovement(rawInput);
 				if(moveMaxSlopeAngle > 45f){
 					float lerpFactor = Mathf.Clamp01((surfaceAngle - 45f) / (moveMaxSlopeAngle - 45f));
 					gravityVector = Vector3.Lerp(gravityVector, Vector3.down, lerpFactor).normalized;
@@ -319,15 +377,16 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		else Debug.DrawRay(transform.position, Vector3.up * 0.05f, Color.red, 10f);
 	}
 
-	private void LadderMovement(){
+	private void LadderMovement(Vector3 rawInput){
 		if(gotMoveInput){
-			Vector3 modifiedInput = new Vector3(0f, 0f, inputVector.z);
-			desiredDirection = Vector3.ProjectOnPlane(head.transform.TransformDirection(modifiedInput), ladderNormal);
+//			Vector3 inputDirection = Vector3.ProjectOnPlane(head.transform.TransformDirection(new Vector3(0f, 0f, rawInput.z)), ladderNormal);
+//			Vector3 inputDirection = Vector3.ProjectOnPlane(head.transform.TransformDirection(rawInput), ladderNormal);
+			Vector3 inputDirection = Vector3.ProjectOnPlane(head.transform.TransformDirection(new Vector3(rawInput.x * 0.33f, 0f, rawInput.z)), ladderNormal);	//TODO don't do the *0.33f thing here. do something else...
 			if(ownVelocity.magnitude <= moveSpeedRegular){
-				ownVelocity += desiredDirection * moveAcceleration * Time.fixedDeltaTime;
+				ownVelocity += inputDirection * moveAcceleration * Time.fixedDeltaTime;
 				if(ownVelocity.magnitude > moveSpeedRegular) ownVelocity = ownVelocity.normalized * moveSpeedRegular;
 			}else{
-				Vector3 idealVector = desiredDirection * moveSpeedRegular;
+				Vector3 idealVector = inputDirection * moveSpeedRegular;
 				Vector3 deltaV = idealVector - ownVelocity;
 				Vector3 velocityChange = deltaV.normalized * moveAcceleration * Time.deltaTime;
 				if(velocityChange.magnitude > deltaV.magnitude) velocityChange = deltaV;
@@ -345,10 +404,10 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		}
 	}
 
-	private void WaterMovement(){
+	private void WaterMovement(Vector3 rawInput){
 		Debug.LogWarning("watermovement");
 		if(gotMoveInput || keyJump.GetKey()){
-			desiredDirection = head.transform.TransformDirection(inputVector);
+			Vector3 desiredDirection = head.transform.TransformDirection(rawInput);
 			if(keyJump.GetKey()){
 				desiredDirection = (desiredDirection + Vector3.up).normalized;
 			}
@@ -364,9 +423,6 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 				ownVelocity += velocityChange;
 			}
 		}
-
-		//TODO not "sliding" when on the surface and holding space
-
 		if(ownVelocity.y > 0){
 			if((waterTrigger.transform.position + (ownVelocity * Time.fixedDeltaTime)).y > waterTrigger.waterLevel){
 				if(ownVelocity.y <= moveSpeedCrouch){
@@ -388,15 +444,16 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 
 	}
 
-	private void GroundedMovement(){
+	private void GroundedMovement(Vector3 rawInput){
+		Vector3 inputDirection = transform.TransformDirection(rawInput);
 		justJumped = false;
-		if(isOnSolidGround) wasOnSolidGround = true;
+		if(isOnSolidGround) wasOnSolidGround = true;		//TODO wtf?
 		else wasOnSolidGround = false;
 		//slope ok
 		if(isOnValidGround){
 			if(!wasGrounded && ownVelocity.magnitude < moveSpeedRegular) velocityComesFromMove = true;
 			ManageVelocityFriction();
-			desiredVector = GetSurfaceMoveVector(desiredDirection, surfaceNormal) * desiredSpeed;
+			desiredVector = GetSurfaceMoveVector(inputDirection, surfaceNormal) * desiredSpeed;
 			//got input
 			if(gotMoveInput){
 				//full control
@@ -415,7 +472,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 						velocityComesFromMove = true;
 					}//redirecting
 					else{
-						Vector3 whereIdLikeToGo = desiredDirection.normalized * ownVelocity.magnitude;
+						Vector3 whereIdLikeToGo = inputDirection.normalized * ownVelocity.magnitude;
 						Vector3 deltaV = whereIdLikeToGo - ownVelocity;
 						if(deltaV.magnitude > desiredSpeed * moveSlideControl) deltaV = deltaV.normalized * desiredSpeed * moveSlideControl;
 						ownVelocity += deltaV * Time.fixedDeltaTime;
@@ -457,7 +514,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		else{
 			SetFrictionToZero();
 			if(gotMoveInput){
-				desiredVector = desiredDirection * desiredSpeed;
+				desiredVector = inputDirection * desiredSpeed;
 				float currentGroundSpeed = Horizontalize(ownVelocity).magnitude;
 				float speedModifier = (currentGroundSpeed > desiredSpeed ? Mathf.Sqrt(currentGroundSpeed / desiredSpeed) : 1f);
 				Vector3 temp = ownVelocity + desiredVector * moveAirControl * Time.fixedDeltaTime * speedModifier;
@@ -473,8 +530,9 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		lastSurfacePoint = surfacePoint.point;
 	}
 
-	private void AirborneMovement(){
+	private void AirborneMovement(Vector3 rawInput){
 		bool notReallyAirborne = StickToGroundIfNecessary();
+		Vector3 desiredDirection = transform.TransformDirection(rawInput);
 		if(!notReallyAirborne){
 			float airSpeed = Horizontalize(ownVelocity).magnitude;
 			if(gotMoveInput){
@@ -736,9 +794,9 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		return new Vector3(inputX, 0f, inputZ);
 	}
 
-	private Vector3 GetDesiredDirection(){
-		return transform.TransformDirection(inputVector).normalized * inputVector.magnitude;
-	}
+//	private Vector3 GetDesiredDirection(){
+//		return transform.TransformDirection(inputVector).normalized * inputVector.magnitude;
+//	}
 
 	private float GetDesiredSpeed(){
 		if(!gotMoveInput) return 0f;
@@ -747,7 +805,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		return moveSpeedRegular;
 	}
 
-	ContactPoint GetSurfacePoint(List<ContactPoint> contacts){
+	ContactPoint GetSurfacePoint(List<ContactPoint> contacts){		//TODO remove if unused
 		ContactPoint temp = new ContactPoint();
 		float biggestDot = -1f;
 		foreach(ContactPoint point in contacts){
@@ -764,6 +822,20 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 		}
 		if(temp.normal.y > 0f) return temp;
 		else return new ContactPoint();
+	}
+
+	SurfacePoint GetSurfacePointNEW (List<ContactPoint> contactPoints) {
+		SurfacePoint output = null;
+		float biggestY = Mathf.NegativeInfinity;		//dot(normal, up) is just the normal's y, so i'm just using 
+		for(int i=0; i<contactPoints.Count; i++){
+			ContactPoint point = contactPoints[i];
+			float newY = point.normal.y;
+			if((newY > biggestY) && (newY > 0f)){
+				biggestY = newY;
+				output = new SurfacePoint(point);
+			}
+		}
+		return output;
 	}
 
 	private Vector3 GetSurfaceMoveVector(Vector3 inputVector, Vector3 inputNormal){

@@ -8,40 +8,42 @@ public class PlayerView : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeybind
 	public GameObject graphicalUserInterface;
 	public Camera cam;
 	public PlayerWeaponSystem weaponSystem;
-	private IGUI gui;
 
-	public float interactRange;
-	public float interactTestsPerSecond;
+	IGUI gui;
 
-	private float interactTestInterval;
-	private float interactTestTimer;
-	private GameObject lastInteractObject;
-	private IInteractable currentInteractObject;
+	[SerializeField] float interactRange = 3f;
+	[SerializeField] float interactTestsPerSecond = 10f;
 
-	public float maxPickupObjectMass;
-	public float throwForce;
-	[Range(0, 10)]
-	public int grabbedObjectSmoothing;
-	private GameObject grabbedObject;
-	private Rigidbody grabbedObjectRB;
-	private float grabbedObjectDrag;
-	private float grabbedObjectAngularDrag;
-	private bool grabbedObjectUsesGravity;
-	private Vector3[] grabbedObjectPositions;
-	private Vector3[] grabbedObjectRotations;
-	private int grabbedObjectSmoothingIndex;
+	float interactTestInterval;
+	float interactTestTimer;
 
-	private float mouseSensitivity;
-	private float mouseInvert;
+	GameObject lastInteractObject;
+	IInteractable currentInteractObject;
 
-	private DoubleKey keyInteract;
-	private DoubleKey keyPrimaryFire;
-	private DoubleKey keyToggleGUI;
+	[SerializeField] float maxPickupObjectMass = 20f;
+	[SerializeField] float throwForce = 6000f;
+	[SerializeField] [Range(0, 10)] int grabbedObjectSmoothing = 2;
 
-	private int layermaskInteract;
-	private int layermaskProp;
+	GameObject grabbedObject;
+	Rigidbody grabbedObjectRB;
+	float grabbedObjectDrag;
+	float grabbedObjectAngularDrag;
+	bool grabbedObjectUsesGravity;
+	Vector3[] grabbedObjectPositions;
+	Vector3[] grabbedObjectRotations;
+	int grabbedObjectSmoothingIndex;
 
-	private int layerWater;
+	float mouseSensitivity;
+	float mouseInvert;
+
+	DoubleKey keyInteract;
+	DoubleKey keyPrimaryFire;
+	DoubleKey keyToggleGUI;
+
+	int layermaskInteract;
+	int layermaskProp;
+
+	int layerWater;
 
 	void Start () {
 		AddSelfToPlayerPrefObserverList();

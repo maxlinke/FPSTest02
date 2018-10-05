@@ -16,7 +16,7 @@ public class PlayerWaterTriggerScript : MonoBehaviour {
 	}
 
 	void OnTriggerEnter(Collider collider){
-		WaterBodyScript wbs = collider.gameObject.GetComponent<WaterBodyScript>();
+		WaterBody wbs = collider.gameObject.GetComponent<WaterBody>();
 		//if(wbs == null) throw new NullReferenceException("watertrigger just entered something tagged as water without a waterbodyscript. object in question : " + collider.name);
 		//else waterLevel = wbs.waterLevel;
 		if(wbs != null) waterLevel = wbs.waterLevel;

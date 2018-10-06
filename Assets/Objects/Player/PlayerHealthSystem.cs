@@ -41,7 +41,7 @@ public class PlayerHealthSystem : MonoBehaviour {
 		
 	}
 
-	public void NotifyOfFallDamage(Vector3 lastVelocity, Vector3 currentVelocity){
+	public void NotifyOfLanding(Vector3 lastVelocity, Vector3 currentVelocity){
 		if(lastVelocity.y < 0f){
 			Vector3 deltaV = currentVelocity - lastVelocity;
 			float deltaY = ((currentVelocity.y < 0f) ? (deltaV.y) : (-lastVelocity.y));

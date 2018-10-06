@@ -37,14 +37,17 @@ public class CollisionAndTriggerLogger : MonoBehaviour {
 
 	void OnCollisionEnter (Collision collision) {
 		collisionEnter = true;
+		DrawCollisionRays(collision, Color.yellow, 0.25f);
 	}
 
 	void OnCollisionStay (Collision collision) {
 		collisionStay = true;
+		DrawCollisionRays(collision, Color.green, 0.25f);
 	}
 
 	void OnCollisionExit (Collision collision) {
 		collisionExit = true;
+		DrawCollisionRays(collision, Color.red, 0.25f);
 	}
 
 	void OnTriggerEnter (Collider otherCollider) {
@@ -63,4 +66,13 @@ public class CollisionAndTriggerLogger : MonoBehaviour {
 		if(value) return "#";
 		else return "_";
 	}
+
+	void DrawCollisionRays (Collision collision, Color color, float length = 1f) {
+		for(int i=0; i<collision.contacts.Length; i++){
+			Vector3 start = collision.contacts[i].point;
+			Vector3 dir = collision.contacts[i].normal;
+			Debug.DrawRay(start, dir * length, color, Time.fixedDeltaTime);
+		}
+	}
+
 }

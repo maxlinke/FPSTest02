@@ -14,7 +14,7 @@ public class LayerMaskUtils {
 		return LayerMask.GetMask(names);
 	}
 
-	public static int Createmask (string layerName) {
+	public static int CreateMask (string layerName) {
 		int layer = LayerMask.NameToLayer(layerName);
 		return CreateMask(layer);
 	}

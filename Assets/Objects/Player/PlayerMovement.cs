@@ -214,7 +214,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 
 	void ManageFallDamage(){	//this is not good practice but otherwise the health system would have to implement collision detection and managing too (as in knowing that i was airborne and now i'm not etc)
 		if(!wasGrounded && isOnValidGround && !isOnLadder){
-			healthSystem.NotifyOfFallDamage(lastVelocity, rb.velocity);
+			healthSystem.NotifyOfLanding(lastVelocity, rb.velocity);
 		}
 	}
 

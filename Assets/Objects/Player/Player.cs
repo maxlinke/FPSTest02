@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Player : MonoBehaviour {
+public class Player : MonoBehaviour, IPauseObserver {
 
 	[Header("Components")]
 	[SerializeField] Rigidbody rb;
@@ -21,10 +21,12 @@ public class Player : MonoBehaviour {
 
 	IGUI gui;
 
+	bool movementWasEnabled, viewWasEnabled, healthSystemWasEnabled, weaponSystemWasEnabled;
+
 	void Start () {
 		gui = guiObject.GetComponent<IGUI>();
 		playerMovement.Initialize(rb, worldCollider, head, playerHealthSystem);
-		playerView.Initialize(rb, head, cam, gui);
+		playerView.Initialize(this, rb, head, cam, gui);
 	}
 
 	void Reset () {
@@ -34,6 +36,28 @@ public class Player : MonoBehaviour {
 		playerWeaponSystem = GetComponentInChildren<PlayerWeaponSystem>();
 	}
 
-	//TODO enabling/disabling components on demand
+	//TODO on start load what components to have enabled (for example dont be able to move etc)
 
+	public void Pause () {
+		movementWasEnabled = playerMovement.enabled;
+		viewWasEnabled = playerView.enabled;
+//		healthSystemWasEnabled = playerHealthSystem.enabled;
+//		weaponSystemWasEnabled = playerWeaponSystem.enabled;
+		SetAllFunctionsEnabled(false);
+	}
+
+	public void Unpause () {
+		playerMovement.enabled = movementWasEnabled;
+		playerView.enabled = viewWasEnabled;
+//		playerHealthSystem.enabled = healthSystemWasEnabled;
+//		playerWeaponSystem.enabled = weaponSystemWasEnabled;
+	}
+
+	public void SetAllFunctionsEnabled (bool value) {
+		playerMovement.enabled = value;
+		playerView.enabled = value;
+//		playerHealthSystem.enabled = value;
+//		playerWeaponSystem.enabled = value;
+	}
+		
 }

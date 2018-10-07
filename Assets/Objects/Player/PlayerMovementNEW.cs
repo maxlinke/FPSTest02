@@ -38,6 +38,38 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			this.isSynthetic = true;
 		}
 
+		public override string ToString () {
+//			return string.Format ("[SurfacePoint]");
+			string output = "";
+			output += "point : " + point.ToString();
+			output += "normal : " + normal.ToString();
+			output += "otherCollider : " + otherCollider.name;
+			output += "isSynthetic : " + isSynthetic;
+			return output;
+		}
+
+	}
+
+	struct StateFlags {
+
+		public bool onGround;
+		public bool onValidGround;
+		public bool onSolidGround;
+		public bool onLadder;
+		public SurfacePoint ladderPoint;	//i very much dislike this being here but it is directly linked to the onLadder bool...
+		public bool inWater;	//as in can swim, not just the feet in water
+
+		public override string ToString () {
+//			return string.Format ("[StateFlags]");
+			string output = "";
+			output += "onGround : " + onGround;
+			output += "onValidGround : " + onValidGround;
+			output += "onSolidGround : " + onSolidGround;
+			output += "onLadder : " + onLadder;
+			output += "inWater : " + inWater;
+			return output;
+		}
+
 	}
 
 	[Header("Movement parameters")]
@@ -77,9 +109,21 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	DoubleKey keyCrouchHold;
 	DoubleKey keySprintHold;
 
+	bool isSprinting;
+	bool wasSprinting;
+
 	List<ContactPoint> contactPoints;
+	StateFlags lastStateFlags;
+	Vector3 lastVelocity;
 	bool justJumped;
-	bool couldSwim;
+	bool canSwim;
+//	bool wasGrounded;
+
+	bool isCrouching{
+		get{
+			return col.height < ((normalHeight + crouchHeight) / 2f);
+		}
+	}
 
 	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthSystem phs) {
 		this.rb = rb;
@@ -95,23 +139,23 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	}
 	
 	void Update () {
+		if(Input.GetKeyDown(KeyCode.Alpha1)) Debug.LogWarning(LayerMask.GetMask("Player"));
+//		CrouchManager();
 		if(Input.GetKeyDown(KeyCode.Mouse1)) rb.velocity += head.transform.forward * 50f;
 	}
 
 	void FixedUpdate () {
+		StateFlags currentStateFlags;
 		SurfacePoint surfacePoint;
 		List<ContactPoint> wallPoints;
-		ManageCollisions(contactPoints, out surfacePoint, out wallPoints);
-//		if(surfacePoint != null){
-//			Debug.DrawRay(surfacePoint.point, surfacePoint.normal, Color.green, 0f, false);
-//		}else{
-//			Debug.DrawRay(rb.transform.position, Vector3.up, Color.red, 0f, false);
-//		}
-		Vector3 extraVector;
-		MovementType movementType = DetermineMovementType(surfacePoint, wallPoints, out extraVector);
+		ManageCollisions(contactPoints, out surfacePoint, out currentStateFlags, out wallPoints);
+		MovementType movementType = GetMovementType(currentStateFlags);
 		Debug.Log(movementType.ToString());
+//		Vector3 acceleration, gravity;
 		switch(movementType){
 		case MovementType.GROUNDED : 
+//			Vector3 ownVelocity = Get
+//			GroundedMovement(surfacePoint, currentStateFlags, rb.velocity, out acceleration, out gravity);
 			break;
 		case MovementType.AIRBORNE : 
 			break;
@@ -121,10 +165,16 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			break;
 		default : throw new UnityException("Unsupported MovementType \"" + movementType.ToString() + "\"");
 		}
+
+		//save velocity before modifying it
+		lastVelocity = rb.velocity;
+//		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
 		rb.velocity += Physics.gravity * Time.fixedDeltaTime;
 
+		//save and/or reset fields
+		lastStateFlags = currentStateFlags;
 		contactPoints.Clear();
-		couldSwim = false;	//needs to be reset as it is done in triggerstay
+		canSwim = false;	//needs to be reset as it is done in triggerstay
 	}
 
 	//IPlayerPrefObserver / IPlayerPrefKeybindObserver / loading stuff
@@ -172,7 +222,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		WaterBody waterBody = otherCollider.gameObject.GetComponent<WaterBody>();
 		if(waterBody != null){
 			if(head.transform.position.y - waterTriggerOffsetFromEyes < waterBody.waterLevel){
-				couldSwim = true;
+				canSwim = true;
 			}
 		}
 	}
@@ -181,16 +231,17 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	}
 
-	//regular methods
+	//pre movement
 
-	void ManageCollisions (List<ContactPoint> contactPoints, out SurfacePoint surfacePoint, out List<ContactPoint> wallPoints) {
+	void ManageCollisions (List<ContactPoint> contactPoints, out SurfacePoint surfacePoint, out StateFlags currentStateFlags, out List<ContactPoint> wallPoints) {
 		RemoveInvalidContactPoints(ref contactPoints);
-//		Debug.Log(contactPoints.Count);
 		surfacePoint = GetSurfacePoint(contactPoints);
 		List<ContactPoint> stepPoints;
 		DetermineWallAndStepPoints(contactPoints, surfacePoint, out wallPoints, out stepPoints);
 		StepUpSteps(stepPoints, ref surfacePoint);
-		//TODO fall damage... now how do i do that now that i dont have wasgrounded etc anymore
+		//TODO what about the sticky ground thing? do it here or "leave it" in airborne movement
+		currentStateFlags = GetStateFlags(surfacePoint, wallPoints);
+		ManageFallDamage(currentStateFlags, lastStateFlags);
 	}
 
 	void FilterAndAddToList (ContactPoint[] originalCollisionContacts, List<ContactPoint> contactPoints) {
@@ -231,41 +282,74 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
+	StateFlags GetStateFlags (SurfacePoint surfacePoint, List<ContactPoint> wallPoints) {
+		StateFlags output = new StateFlags();
+		output.onGround = GetIsGrounded(surfacePoint);
+		output.onValidGround = GetIsOnValidGround(surfacePoint);
+		output.onSolidGround = GetIsOnSolidGround(surfacePoint);
+		output.onLadder = GetIsOnLadder(wallPoints, out output.ladderPoint);
+		output.inWater = canSwim;
+		return output;
+	}
+
 	void StepUpSteps (List<ContactPoint> stepPoints, ref SurfacePoint surfacePoint) {
 		//TODO implement this
 	}
 
-	MovementType DetermineMovementType (SurfacePoint surfacePoint, List<ContactPoint> wallPoints, out Vector3 extraVector) {
-		bool grounded = GetIsGrounded(surfacePoint);
-		bool onValidGround = GetIsOnValidGround(surfacePoint);
-//		bool onValidGround, onSolidGround;
-//		if(grounded){
-//			onValidGround = GetIsOnValidGround(surfacePoint);
-//			onSolidGround = ColliderIsSolid(surfacePoint.otherCollider);
-//		}else{
-//			onValidGround = false;
-//			onSolidGround = false;
-//		}
-		Vector3 ladderNormal;
-		bool onLadder = (GetIsOnLadder(wallPoints, out ladderNormal) && !onValidGround);
-//		bool onLadder = (onValidGround ? false : GetIsOnLadder(wallPoints, out ladderNormal));
+	void ManageFallDamage (StateFlags currentStateFlags, StateFlags lastStateFlags) {
+		if(!lastStateFlags.onGround){	//maybe just saying onground is a bad idea but it's videogamey...
+			if(currentStateFlags.onValidGround && !currentStateFlags.onLadder){
+//				healthSystem.NotifyOfLanding(lastVelocity, rb.velocity);
+				Debug.LogWarning("TODO, healthsystem and stuff");
+			}
+		}
+	}
 
-		//TODO maybe even the movement could be called here
-		//that would save me the "extraVector" and movementType and I could just return the movement vector and gravity...
-		//or maybe not because it does seem a bit silly.
-		if(onLadder){
-			extraVector = ladderNormal;
+	MovementType GetMovementType (StateFlags currentStateFlags) {
+		if(currentStateFlags.onLadder && !currentStateFlags.onValidGround){
 			return MovementType.LADDER;
-		}else if(couldSwim){
-			extraVector = Vector3.zero;
+		}else if(currentStateFlags.inWater){
 			return MovementType.SWIMMING;
-		}else if(grounded){
-			extraVector = Vector3.zero;
+		}else if(currentStateFlags.onGround){
 			return MovementType.GROUNDED;
 		}else{
-			extraVector = Vector3.zero;
 			return MovementType.AIRBORNE;
 		}
+
+	}
+
+	//actual movement
+
+	void GroundedMovement (SurfacePoint surfacePoint, StateFlags currentStateFlags, Vector3 currentVelocity, out Vector3 outputAcceleration, out Vector3 outputGravity) {
+		//TODO remove both these
+		outputAcceleration = Vector3.zero;
+		outputGravity = Vector3.zero;
+		Vector3 inputRaw = GetInputVector();
+		Vector3 inputDirection = rb.transform.TransformDirection(inputRaw);
+		//slope ok
+		if(currentStateFlags.onValidGround){
+//			Vector3 
+		}
+		//slope to steep
+		else{
+
+		}
+	}
+
+	//managers
+
+	void CrouchManager () {
+		bool crouchWish = false;
+		bool uncrouchWish = false;
+		if(keyCrouchHold.GetKey()) crouchWish = true;
+		if(keyCrouchHold.GetKeyUp()) uncrouchWish = true;
+		if(keyCrouchToggle.GetKeyDown()){
+			if(isCrouching) crouchWish = true;
+			else uncrouchWish = true;
+		}
+	}
+
+	void SprintManager () {
 
 	}
 
@@ -279,6 +363,11 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		Vector3 combined = keyboardInput + controllerInput;
 		if(combined.sqrMagnitude > 1f) combined = combined.normalized;
 		return combined;
+	}
+
+	float GetHeightAppropriateSpeed () {
+		float lerpFactor = (col.height - crouchHeight) / (normalHeight - crouchHeight);
+		return Mathf.Lerp(moveSpeedCrouch, moveSpeedRegular, lerpFactor);
 	}
 
 	SurfacePoint GetSurfacePoint (List<ContactPoint> contactPoints) {
@@ -311,6 +400,20 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		return output;
 	}
 
+	Vector3 GetRelativeVelocity (Vector3 totalVelocity, SurfacePoint surfacePoint) {
+		Vector3 otherVelocity;
+		if(surfacePoint == null){
+			otherVelocity = Vector3.zero;
+		}else if(surfacePoint.otherCollider == null){
+			otherVelocity = Vector3.zero;
+		}else if(surfacePoint.otherCollider.attachedRigidbody == null){
+			otherVelocity = Vector3.zero;
+		}else{
+			otherVelocity = surfacePoint.otherCollider.attachedRigidbody.velocity;
+		}
+		return totalVelocity - otherVelocity;
+	}
+
 	bool ColliderIsSolid (Collider collider) {
 		Rigidbody otherRB = collider.attachedRigidbody;
 		if(otherRB == null) return true;
@@ -326,7 +429,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	bool GetIsGrounded (SurfacePoint surfacePoint) {
 		if(surfacePoint == null) return false;
 		if(justJumped) return false;
-//		if(surfacePoint.angle > 89f) return false;		//TODO leave out or leave in?
+		if(surfacePoint.angle > 89f) return false;		//if this is not in, some walls (straight up) count as ground...
 		return true;
 	}
 
@@ -335,19 +438,53 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		return (surfacePoint.angle <= moveMaxSlopeAngle);
 	}
 
-	bool GetIsOnLadder (List<ContactPoint> wallPoints, out Vector3 ladderNormal) {
+	bool GetIsOnSolidGround (SurfacePoint surfacePoint) {
+		if(!GetIsGrounded(surfacePoint)) return false;
+		if(surfacePoint.otherCollider.attachedRigidbody == null) return true;
+		if(surfacePoint.otherCollider.attachedRigidbody.isKinematic) return true;
+		return false;
+	}
+
+	bool GetIsOnLadder (List<ContactPoint> wallPoints, out SurfacePoint ladderPoint) {
 		for(int i=0; i<wallPoints.Count; i++){
 			ContactPoint point = wallPoints[i];
 			if(TagManager.CompareTag("Ladder", point.otherCollider.gameObject)){
 				float ladderAngle = Vector3.Angle(point.normal, Vector3.up);
 				if(ladderAngle < 91f){
-					ladderNormal = point.normal;
+					ladderPoint = new SurfacePoint(point);
 					return true;
 				}
 			}
 		}
-		ladderNormal = Vector3.zero;
+		ladderPoint = null;
 		return false;
+	}
+
+	bool CanUncrouch () {
+		if(!isCrouching){
+			return false;
+		}else{
+			Vector3 rayStart = transform.position + (Vector3.up * col.height / 2f);
+			Vector3 rayDir = Vector3.up;
+			float rayLength = normalHeight - (col.height / 2f);
+			int completePlayerCollisionMask = LayerMaskUtils.CreateMask("Player");
+			int onlyWaterMask = LayerMask.GetMask("Water");
+			int crouchcastLayermask = completePlayerCollisionMask & (~onlyWaterMask);
+			RaycastHit hit;
+			if(Physics.Raycast(rayStart, rayDir, out hit, rayLength, crouchcastLayermask)){	
+				//TODO the raycast currently also hits water
+				//hitting water is no reason to not uncrouch
+				//hitting water is also no way to say it's okay to uncrouch
+				//i could either make a new layer to csat
+				//or i could recast the ray
+				//OOOOOOOOORRRRRRRRRR
+				//i just AND (&) out the water layer from the layermask
+				//TODO layermaskutils for the cast-masks. no need to waste precious collision layers :P
+				return false;
+			}else{
+				return true;
+			}
+		}
 	}
 
 }

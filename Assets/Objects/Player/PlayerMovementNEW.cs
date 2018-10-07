@@ -39,7 +39,6 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 
 		public override string ToString () {
-//			return string.Format ("[SurfacePoint]");
 			string output = "";
 			output += "point : " + point.ToString();
 			output += "normal : " + normal.ToString();
@@ -50,7 +49,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	}
 
-	struct StateFlags {
+	struct StateData {	//TODO also include surfacepoint and wascrouching/sprinting? i mean why not?
 
 		public bool onGround;
 		public bool onValidGround;
@@ -58,9 +57,12 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		public bool onLadder;
 		public SurfacePoint ladderPoint;	//i very much dislike this being here but it is directly linked to the onLadder bool...
 		public bool inWater;	//as in can swim, not just the feet in water
+		public bool jumped;
+
+		public Vector3 incomingVelocity;
+		public Vector3 outgoingVelocity;
 
 		public override string ToString () {
-//			return string.Format ("[StateFlags]");
 			string output = "";
 			output += "onGround : " + onGround;
 			output += "onValidGround : " + onValidGround;
@@ -113,11 +115,10 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	bool wasSprinting;
 
 	List<ContactPoint> contactPoints;
-	StateFlags lastStateFlags;
-	Vector3 lastVelocity;
-	bool justJumped;
+	StateData lastState;
 	bool canSwim;
-//	bool wasGrounded;
+
+	bool velocityComesFromMove;
 
 	bool isCrouching{
 		get{
@@ -139,40 +140,52 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	}
 	
 	void Update () {
-		if(Input.GetKeyDown(KeyCode.Alpha1)) Debug.LogWarning(LayerMask.GetMask("Player"));
-//		CrouchManager();
+		CrouchManager();
 		if(Input.GetKeyDown(KeyCode.Mouse1)) rb.velocity += head.transform.forward * 50f;
 	}
 
 	void FixedUpdate () {
-		StateFlags currentStateFlags;
+		StateData currentState;
 		SurfacePoint surfacePoint;
 		List<ContactPoint> wallPoints;
-		ManageCollisions(contactPoints, out surfacePoint, out currentStateFlags, out wallPoints);
-		MovementType movementType = GetMovementType(currentStateFlags);
+		ManageCollisions(contactPoints, out surfacePoint, out currentState, out wallPoints);
+		currentState.incomingVelocity = rb.velocity;
+		MovementType movementType = GetMovementType(currentState);
+		bool gotAcceleratedInbetween = (currentState.incomingVelocity.sqrMagnitude > lastState.outgoingVelocity.sqrMagnitude);
 		Debug.Log(movementType.ToString());
-//		Vector3 acceleration, gravity;
+		//TODO i guess set justJumped to false (here) before movement begins 
+		//and do the sticking in the collision managing or after that
+		//and if sticking is done, ref the surfacepoint and overwrite it with a synthetic one
+		Vector3 ownVelocity, acceleration, gravity;
 		switch(movementType){
 		case MovementType.GROUNDED : 
-//			Vector3 ownVelocity = Get
-//			GroundedMovement(surfacePoint, currentStateFlags, rb.velocity, out acceleration, out gravity);
+			ownVelocity = GetRelativeVelocity(rb.velocity, surfacePoint);
+			GroundedMovement(surfacePoint, currentState, rb.velocity, ref velocityComesFromMove, out acceleration, out gravity);
 			break;
 		case MovementType.AIRBORNE : 
+			acceleration = Vector3.zero;
+			gravity = Physics.gravity;
 			break;
 		case MovementType.SWIMMING : 
+			acceleration = Vector3.zero;
+			gravity = Physics.gravity;
 			break;
 		case MovementType.LADDER : 
+			acceleration = Vector3.zero;
+			gravity = Physics.gravity;
 			break;
-		default : throw new UnityException("Unsupported MovementType \"" + movementType.ToString() + "\"");
+		default : 
+			acceleration = Vector3.zero;
+			gravity = Physics.gravity;
+			throw new UnityException("Unsupported MovementType \"" + movementType.ToString() + "\"");
 		}
 
 		//save velocity before modifying it
-		lastVelocity = rb.velocity;
-//		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
-		rb.velocity += Physics.gravity * Time.fixedDeltaTime;
+		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
+		currentState.outgoingVelocity = rb.velocity;
 
 		//save and/or reset fields
-		lastStateFlags = currentStateFlags;
+		lastState = currentState;
 		contactPoints.Clear();
 		canSwim = false;	//needs to be reset as it is done in triggerstay
 	}
@@ -233,15 +246,15 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	//pre movement
 
-	void ManageCollisions (List<ContactPoint> contactPoints, out SurfacePoint surfacePoint, out StateFlags currentStateFlags, out List<ContactPoint> wallPoints) {
+	void ManageCollisions (List<ContactPoint> contactPoints, out SurfacePoint surfacePoint, out StateData currentStateFlags, out List<ContactPoint> wallPoints) {
 		RemoveInvalidContactPoints(ref contactPoints);
 		surfacePoint = GetSurfacePoint(contactPoints);
 		List<ContactPoint> stepPoints;
 		DetermineWallAndStepPoints(contactPoints, surfacePoint, out wallPoints, out stepPoints);
 		StepUpSteps(stepPoints, ref surfacePoint);
 		//TODO what about the sticky ground thing? do it here or "leave it" in airborne movement
-		currentStateFlags = GetStateFlags(surfacePoint, wallPoints);
-		ManageFallDamage(currentStateFlags, lastStateFlags);
+		currentStateFlags = GetStateFlags(surfacePoint, wallPoints, lastState);
+		ManageFallDamage(currentStateFlags, lastState);
 	}
 
 	void FilterAndAddToList (ContactPoint[] originalCollisionContacts, List<ContactPoint> contactPoints) {
@@ -282,11 +295,13 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
-	StateFlags GetStateFlags (SurfacePoint surfacePoint, List<ContactPoint> wallPoints) {
-		StateFlags output = new StateFlags();
-		output.onGround = GetIsGrounded(surfacePoint);
-		output.onValidGround = GetIsOnValidGround(surfacePoint);
-		output.onSolidGround = GetIsOnSolidGround(surfacePoint);
+	StateData GetStateFlags (SurfacePoint surfacePoint, List<ContactPoint> wallPoints, StateData lastState) {
+		StateData output = new StateData();
+		output.onGround = GetIsGrounded(surfacePoint, lastState);
+		if(output.onGround){
+			output.onValidGround = GetIsOnValidGround(surfacePoint);
+			output.onSolidGround = GetIsOnSolidGround(surfacePoint);
+		}
 		output.onLadder = GetIsOnLadder(wallPoints, out output.ladderPoint);
 		output.inWater = canSwim;
 		return output;
@@ -296,7 +311,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		//TODO implement this
 	}
 
-	void ManageFallDamage (StateFlags currentStateFlags, StateFlags lastStateFlags) {
+	void ManageFallDamage (StateData currentStateFlags, StateData lastStateFlags) {
 		if(!lastStateFlags.onGround){	//maybe just saying onground is a bad idea but it's videogamey...
 			if(currentStateFlags.onValidGround && !currentStateFlags.onLadder){
 //				healthSystem.NotifyOfLanding(lastVelocity, rb.velocity);
@@ -305,7 +320,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
-	MovementType GetMovementType (StateFlags currentStateFlags) {
+	MovementType GetMovementType (StateData currentStateFlags) {
 		if(currentStateFlags.onLadder && !currentStateFlags.onValidGround){
 			return MovementType.LADDER;
 		}else if(currentStateFlags.inWater){
@@ -320,20 +335,19 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	//actual movement
 
-	void GroundedMovement (SurfacePoint surfacePoint, StateFlags currentStateFlags, Vector3 currentVelocity, out Vector3 outputAcceleration, out Vector3 outputGravity) {
-		//TODO remove both these
-		outputAcceleration = Vector3.zero;
-		outputGravity = Vector3.zero;
+	void GroundedMovement (SurfacePoint surfacePoint, StateData currentStateFlags, Vector3 currentVelocity, ref bool velocityComesFromMove, out Vector3 outputAcceleration, out Vector3 outputGravity) {
 		Vector3 inputRaw = GetInputVector();
 		Vector3 inputDirection = rb.transform.TransformDirection(inputRaw);
 		//slope ok
 		if(currentStateFlags.onValidGround){
-//			Vector3 
+			Vector3 desiredVelocity = GetSurfaceMoveVector(inputDirection, surfacePoint.normal) * GetHeightAppropriateSpeed();
 		}
 		//slope to steep
 		else{
 
 		}
+		outputAcceleration = Vector3.zero;	//TODO obviously these need to be removed in order for this to work...
+		outputGravity = Physics.gravity;
 	}
 
 	//managers
@@ -426,20 +440,18 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		else return (otherRB.isKinematic && (otherRB.velocity == Vector3.zero));
 	}
 
-	bool GetIsGrounded (SurfacePoint surfacePoint) {
+	bool GetIsGrounded (SurfacePoint surfacePoint, StateData lastState) {
 		if(surfacePoint == null) return false;
-		if(justJumped) return false;
+		if(lastState.jumped) return false;
 		if(surfacePoint.angle > 89f) return false;		//if this is not in, some walls (straight up) count as ground...
 		return true;
 	}
 
 	bool GetIsOnValidGround (SurfacePoint surfacePoint) {
-		if(!GetIsGrounded(surfacePoint)) return false;
 		return (surfacePoint.angle <= moveMaxSlopeAngle);
 	}
 
 	bool GetIsOnSolidGround (SurfacePoint surfacePoint) {
-		if(!GetIsGrounded(surfacePoint)) return false;
 		if(surfacePoint.otherCollider.attachedRigidbody == null) return true;
 		if(surfacePoint.otherCollider.attachedRigidbody.isKinematic) return true;
 		return false;
@@ -470,6 +482,11 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			int completePlayerCollisionMask = LayerMaskUtils.CreateMask("Player");
 			int onlyWaterMask = LayerMask.GetMask("Water");
 			int crouchcastLayermask = completePlayerCollisionMask & (~onlyWaterMask);
+			string logString = "";
+			logString += LayerMaskUtils.MaskToBinaryString(completePlayerCollisionMask) + "\n";
+			logString += LayerMaskUtils.MaskToBinaryString(onlyWaterMask) + "\n";
+			logString += LayerMaskUtils.MaskToBinaryString(crouchcastLayermask);
+			Debug.LogWarning(logString);
 			RaycastHit hit;
 			if(Physics.Raycast(rayStart, rayDir, out hit, rayLength, crouchcastLayermask)){	
 				//TODO the raycast currently also hits water

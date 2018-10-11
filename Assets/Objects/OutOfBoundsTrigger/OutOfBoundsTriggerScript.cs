@@ -16,11 +16,14 @@ public class OutOfBoundsTriggerScript : MonoBehaviour {
 //			Destroy(obj);
 //		}
 
-		Rigidbody otherRB = collider.gameObject.GetComponentInParent<Rigidbody>();
+//		Rigidbody otherRB = collider.gameObject.GetComponentInParent<Rigidbody>();
+		Rigidbody otherRB = collider.attachedRigidbody;
 		if(otherRB != null){
+			Debug.LogWarning(otherRB.name + " went out of bounds and was teleported to " + teleportPoint);
 			otherRB.velocity = Vector3.zero;
 			otherRB.transform.position = teleportPoint.transform.position;
 		}else{
+			Debug.LogWarning(collider.gameObject.name + " went out of bounds and was destroyed");
 			Destroy(collider.gameObject);
 		}
 	}

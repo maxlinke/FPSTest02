@@ -11,10 +11,6 @@ public class TimeScaleSetter : MonoBehaviour {
 	}
 
 	[SerializeField] KeyTimePair[] pairs;
-
-	void Start () {
-		
-	}
 	
 	void Update () {
 		for(int i=0; i<pairs.Length; i++){

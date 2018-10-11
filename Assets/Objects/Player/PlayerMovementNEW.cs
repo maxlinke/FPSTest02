@@ -62,6 +62,8 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		public Vector3 incomingVelocity;
 		public Vector3 outgoingVelocity;
 
+		public Vector3 rawInput;
+
 		public override string ToString () {
 			string output = "";
 			output += "onGround : " + onGround;
@@ -82,6 +84,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	[SerializeField] float moveJumpHeight = 1.5f;
 	[SerializeField] float moveMaxSlopeAngle = 55f;
 	[SerializeField] float moveMaxStepOffset = 0.3f;
+	[SerializeField] float moveSlopeSlideStartAngle = 45f;
 	[SerializeField] float moveSlideControl = 12f;
 	[SerializeField] float moveAirControl = 4f;
 
@@ -99,6 +102,8 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	Rigidbody rb;
 	PlayerHealthSystem healthSystem;
 	PhysicMaterial pm;
+
+	Vector3 jumpVelocity;
 
 	DoubleKey keyMoveForward;
 	DoubleKey keyMoveBackward;
@@ -118,8 +123,6 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	StateData lastState;
 	bool canSwim;
 
-	bool velocityComesFromMove;
-
 	bool isCrouching{
 		get{
 			return col.height < ((normalHeight + crouchHeight) / 2f);
@@ -137,10 +140,11 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		pm = col.material;
 		col.height = normalHeight;
 		col.center = new Vector3(0f, col.height/2f, 0f);
+		jumpVelocity = Vector3.up * Mathf.Sqrt(2f * normalGravity * moveJumpHeight);
 	}
 	
 	void Update () {
-		CrouchManager();
+//		CrouchManager();
 		if(Input.GetKeyDown(KeyCode.Mouse1)) rb.velocity += head.transform.forward * 50f;
 	}
 
@@ -149,22 +153,22 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		SurfacePoint surfacePoint;
 		List<ContactPoint> wallPoints;
 		ManageCollisions(contactPoints, out surfacePoint, out currentState, out wallPoints);
-		currentState.incomingVelocity = rb.velocity;
 		MovementType movementType = GetMovementType(currentState);
-		bool gotAcceleratedInbetween = (currentState.incomingVelocity.sqrMagnitude > lastState.outgoingVelocity.sqrMagnitude);
+//		bool gotAcceleratedInbetween = (currentState.incomingVelocity.sqrMagnitude > lastState.outgoingVelocity.sqrMagnitude);
+		//debug stuff
 		Debug.Log(movementType.ToString());
 		//TODO i guess set justJumped to false (here) before movement begins 
 		//and do the sticking in the collision managing or after that
-		//and if sticking is done, ref the surfacepoint and overwrite it with a synthetic one
+		//and if sticking is done, ref the surfacepoint and overwrite it with a "synthetic" one
 		Vector3 ownVelocity, acceleration, gravity;
 		switch(movementType){
 		case MovementType.GROUNDED : 
 			ownVelocity = GetRelativeVelocity(rb.velocity, surfacePoint);
-			GroundedMovement(surfacePoint, currentState, rb.velocity, ref velocityComesFromMove, out acceleration, out gravity);
+			GroundedMovement(surfacePoint, ref currentState, ownVelocity, out acceleration, out gravity);
 			break;
 		case MovementType.AIRBORNE : 
-			acceleration = Vector3.zero;
-			gravity = Physics.gravity;
+			ownVelocity = rb.velocity;	//TODO maybe you are jumping in a train car or something... ? (big trigger "relative air" or something)
+			AirborneMovement(ref currentState, ownVelocity, out acceleration, out gravity);
 			break;
 		case MovementType.SWIMMING : 
 			acceleration = Vector3.zero;
@@ -175,12 +179,9 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			gravity = Physics.gravity;
 			break;
 		default : 
-			acceleration = Vector3.zero;
-			gravity = Physics.gravity;
 			throw new UnityException("Unsupported MovementType \"" + movementType.ToString() + "\"");
 		}
 
-		//save velocity before modifying it
 		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
 		currentState.outgoingVelocity = rb.velocity;
 
@@ -246,15 +247,15 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	//pre movement
 
-	void ManageCollisions (List<ContactPoint> contactPoints, out SurfacePoint surfacePoint, out StateData currentStateFlags, out List<ContactPoint> wallPoints) {
+	void ManageCollisions (List<ContactPoint> contactPoints, out SurfacePoint surfacePoint, out StateData currentStateData, out List<ContactPoint> wallPoints) {
 		RemoveInvalidContactPoints(ref contactPoints);
 		surfacePoint = GetSurfacePoint(contactPoints);
 		List<ContactPoint> stepPoints;
 		DetermineWallAndStepPoints(contactPoints, surfacePoint, out wallPoints, out stepPoints);
 		StepUpSteps(stepPoints, ref surfacePoint);
 		//TODO what about the sticky ground thing? do it here or "leave it" in airborne movement
-		currentStateFlags = GetStateFlags(surfacePoint, wallPoints, lastState);
-		ManageFallDamage(currentStateFlags, lastState);
+		currentStateData = GetStateData(surfacePoint, wallPoints, lastState);
+		ManageFallDamage(currentStateData, lastState);
 	}
 
 	void FilterAndAddToList (ContactPoint[] originalCollisionContacts, List<ContactPoint> contactPoints) {
@@ -295,8 +296,10 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
-	StateData GetStateFlags (SurfacePoint surfacePoint, List<ContactPoint> wallPoints, StateData lastState) {
+	StateData GetStateData (SurfacePoint surfacePoint, List<ContactPoint> wallPoints, StateData lastState) {
 		StateData output = new StateData();
+		output.rawInput = GetInputVector();
+		output.incomingVelocity = rb.velocity;
 		output.onGround = GetIsGrounded(surfacePoint, lastState);
 		if(output.onGround){
 			output.onValidGround = GetIsOnValidGround(surfacePoint);
@@ -311,21 +314,21 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		//TODO implement this
 	}
 
-	void ManageFallDamage (StateData currentStateFlags, StateData lastStateFlags) {
-		if(!lastStateFlags.onGround){	//maybe just saying onground is a bad idea but it's videogamey...
-			if(currentStateFlags.onValidGround && !currentStateFlags.onLadder){
+	void ManageFallDamage (StateData currentStateData, StateData lastStateData) {
+		if(!lastStateData.onGround){	//maybe just saying onground is a bad idea but it's videogamey...
+			if(currentStateData.onValidGround && !currentStateData.onLadder){
 //				healthSystem.NotifyOfLanding(lastVelocity, rb.velocity);
 				Debug.LogWarning("TODO, healthsystem and stuff");
 			}
 		}
 	}
 
-	MovementType GetMovementType (StateData currentStateFlags) {
-		if(currentStateFlags.onLadder && !currentStateFlags.onValidGround){
+	MovementType GetMovementType (StateData currentStateData) {
+		if(currentStateData.onLadder && !currentStateData.onValidGround){
 			return MovementType.LADDER;
-		}else if(currentStateFlags.inWater){
+		}else if(currentStateData.inWater){
 			return MovementType.SWIMMING;
-		}else if(currentStateFlags.onGround){
+		}else if(currentStateData.onGround){
 			return MovementType.GROUNDED;
 		}else{
 			return MovementType.AIRBORNE;
@@ -335,39 +338,97 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	//actual movement
 
-	void GroundedMovement (SurfacePoint surfacePoint, StateData currentStateFlags, Vector3 currentVelocity, ref bool velocityComesFromMove, out Vector3 outputAcceleration, out Vector3 outputGravity) {
-		Vector3 inputRaw = GetInputVector();
-		Vector3 inputDirection = rb.transform.TransformDirection(inputRaw);
+	//TODO bring back velocitycomesfrommove. if it doesn't set the friction to zero, otherwise, idk...
+	void GroundedMovement (SurfacePoint surfacePoint, ref StateData currentStateData, Vector3 currentVelocity, out Vector3 outputAcceleration, out Vector3 outputGravity) {
+		outputAcceleration = Vector3.zero;
+		float currentSpeed = currentVelocity.magnitude;
+		Vector3 inputVector = rb.transform.TransformDirection(currentStateData.rawInput);
 		//slope ok
-		if(currentStateFlags.onValidGround){
-			Vector3 desiredVelocity = GetSurfaceMoveVector(inputDirection, surfacePoint.normal) * GetHeightAppropriateSpeed();
+		if(currentStateData.onValidGround){
+			inputVector = GetSurfaceMoveVector(inputVector, surfacePoint.normal);
+			//regular accel/decel
+			if(currentSpeed < moveSpeedSprint){
+				Vector3 desiredVelocity = inputVector * GetHeightAppropriateSpeed();	//TODO and crouch and sprint..
+				outputAcceleration += ClampedAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
+			}//redirecting
+			else{
+				Vector3 desiredVelocity = Vector3.Lerp(rb.transform.forward, inputVector, inputVector.magnitude) * currentSpeed;
+				outputAcceleration += ClampedAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
+			}
+			if(keyJump.GetKey()){
+				//TODO make it possible for gravity to go sideways
+				//so horizontalized should stay in local space
+				//and jumpvelocity should go along rb.transform.up (or just rb.transform.TransformDirection(...))
+				//and all the surface data should work with rb.transform.up...
+				outputAcceleration = Horizontalized(outputAcceleration) + (jumpVelocity / Time.fixedDeltaTime);
+				currentStateData.jumped = true;
+			}
 		}
 		//slope to steep
 		else{
 
 		}
-		outputAcceleration = Vector3.zero;	//TODO obviously these need to be removed in order for this to work...
+		float lerpFactor = Mathf.Clamp01((surfacePoint.angle - moveSlopeSlideStartAngle) / (moveMaxSlopeAngle - moveSlopeSlideStartAngle));
+		outputGravity = Vector3.Lerp(-surfacePoint.normal, Vector3.down, lerpFactor) * Physics.gravity.magnitude;
+	}
+
+	void AirborneMovement (ref StateData currentStateData, Vector3 currentVelocity, out Vector3 outputAcceleration, out Vector3 outputGravity) {
+		Vector3 inputVector = rb.transform.TransformDirection(currentStateData.rawInput);
+		float currentGroundSpeed = Horizontalized(currentVelocity).magnitude;
+		//idk if dividing this is even necessary, looking at the old version...
+//		if(currentGroundSpeed < moveSpeedSprint){
+//
+//		}else{
+//
+//		}
+		outputAcceleration = inputVector;
 		outputGravity = Physics.gravity;
 	}
 
 	//managers
 
-	void CrouchManager () {
-		bool crouchWish = false;
-		bool uncrouchWish = false;
+	void CrouchManager (ref bool isCrouching) {
+		bool crouchWish = isCrouching;
 		if(keyCrouchHold.GetKey()) crouchWish = true;
-		if(keyCrouchHold.GetKeyUp()) uncrouchWish = true;
+		if(keyCrouchHold.GetKeyUp()) crouchWish = false;
 		if(keyCrouchToggle.GetKeyDown()){
-			if(isCrouching) crouchWish = true;
-			else uncrouchWish = true;
+			if(!isCrouching) crouchWish = true;
+			else crouchWish = false;
 		}
+		isCrouching = crouchWish;
+		//TODO can't do with the isCrouching bool that is only get (based on collider height)
+		//i somehow need to pass out the result and modify the height with time
+		//crouch/uncrouch TIME synced with ANIMATIONS or animator.setfloat to be between standing and crouching
 	}
 
-	void SprintManager () {
-
+	//TODO this is THUS FAR the same as crouchmanager
+	//i can obviously do this in one method, but what would i name it?
+	void SprintManager (ref bool isSprinting) {
+		bool sprintWish = isSprinting;
+		if(keySprintHold.GetKey()) sprintWish = true;
+		if(keySprintHold.GetKeyUp()) sprintWish = false;
+		if(keySprintToggle.GetKeyDown()){
+			if(!isSprinting) sprintWish = true;
+			else sprintWish = false;
+		}
+		isSprinting = sprintWish;
 	}
 
 	//utility
+
+	Vector3 Horizontalized (Vector3 vector) {
+		return new Vector3(vector.x, 0f, vector.z);
+	}
+
+	Vector3 ClampedAcceleration (Vector3 currentVelocity, Vector3 targetVelocity, float maxAccel) {
+		Vector3 deltaV = targetVelocity - currentVelocity;
+		Vector3 deltaVAccel = deltaV / Time.fixedDeltaTime;
+		if(deltaVAccel.magnitude > maxAccel){
+			return deltaV.normalized * maxAccel;
+		}else{
+			return deltaVAccel;
+		}
+	}
 
 	Vector3 GetInputVector () {
 		int keyboardZ = (keyMoveForward.GetKey() ? 1 : 0) + (keyMoveBackward.GetKey() ? -1 : 0);

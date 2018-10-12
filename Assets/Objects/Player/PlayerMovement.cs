@@ -603,6 +603,7 @@ public class PlayerMovement : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKey
 			if(hitAngle <= moveMaxSlopeAngle && angleBetweenVelocityAndHit < 90f){
 				//Debug.Log("sticking. angle : " + angleBetweenVelocityAndHit);
 				Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) + (Vector3.down * col.radius);
+				Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
 				//Debug.DrawRay(properPosition, Vector3.up * 0.5f, Color.cyan, 10f);
 				rb.MovePosition(properPosition);
 				ownVelocity = Vector3.ProjectOnPlane(ownVelocity, hit.normal) - (hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime);

@@ -23,6 +23,9 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 	float mouseSensitivity;
 	float mouseInvert;
 
+	float controllerSensitivity;
+	float controllerInvert;
+
 	float tilt;
 	float pan;
 
@@ -53,7 +56,7 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 	}
 	
 	void Update () {
-		MouseLook();
+		Look();
 		if(Input.GetKeyDown(KeyCode.Q)){	//TODO debug slowmo. remove if done with that stuff
 			if(Time.timeScale < 1f) Time.timeScale = 1f;
 			else Time.timeScale = 0.05f;
@@ -98,6 +101,12 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 	void LoadValues () {
 		mouseSensitivity = PlayerPrefManager.GetFloat("mouse_sensitivity");
 		mouseInvert = ((PlayerPrefManager.GetInt("mouse_invert") == 0) ? +1 : -1);
+		//TODO controller options!
+		//TODO dynamically created bindings menu (enums for different categories etc...) (joystick buttons can be assigned normally but what about the "axes" at the back?)
+		Debug.LogWarning("TODO : Controller options!");
+		Debug.LogWarning("TODO : Dynamically created bindings menu!");
+		controllerSensitivity = mouseSensitivity / 2f;
+		controllerInvert = mouseInvert;
 		cam.fieldOfView = PlayerPrefManager.GetFloat("camera_fov");
 	}
 
@@ -107,10 +116,10 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 		keyToggleGUI = DoubleKey.FromPlayerPrefs("key_toggleGUI");
 	}
 
-	void MouseLook () {
-		Vector2 mouseMove = GetMouseMovement();
-		pan = Mathf.Repeat(pan + mouseMove.x, 360);
-		tilt = Mathf.Clamp(tilt + mouseMove.y, -90, 90);
+	void Look () {
+		Vector2 look = GetLookInput();
+		pan = Mathf.Repeat(pan + look.x, 360);
+		tilt = Mathf.Clamp(tilt + look.y, -90, 90);
 		float rPan = Mathf.Deg2Rad * pan;
 		float rTilt = Mathf.Deg2Rad * tilt;
 		float sinPan = Mathf.Sin(rPan);
@@ -173,10 +182,15 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 
 	//utility
 
-	Vector2 GetMouseMovement () {
-		float movementX = Input.GetAxisRaw("Mouse X") * mouseSensitivity * Time.timeScale;
-		float movementY = Input.GetAxisRaw("Mouse Y") * mouseSensitivity * Time.timeScale * mouseInvert;
-		return new Vector2(movementX, movementY);
+	Vector2 GetLookInput () {
+		float mouseX = Input.GetAxisRaw("Mouse X");
+		float mouseY = Input.GetAxisRaw("Mouse Y") * mouseInvert;
+		Vector2 mouseInput = new Vector2(mouseX, mouseY);
+		float controllerX = Input.GetAxisRaw("RX");
+		float controllerY = Input.GetAxisRaw("RY") * mouseInvert;
+		Vector2 controllerInput = new Vector2(controllerX, controllerY);
+		Vector2 combined = mouseInput + controllerInput;
+		return (combined * mouseSensitivity * Time.timeScale);
 	}
 
 	void InteractCast (out IInteractable interactableObject, out Rigidbody grabbableRigidbody) {

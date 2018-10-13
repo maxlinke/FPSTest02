@@ -171,7 +171,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		//TODO i guess set justJumped to false (here) before movement begins 
 		//and do the sticking in the collision managing or after that
 		//and if sticking is done, ref the surfacepoint and overwrite it with a "synthetic" one
-		Vector3 ownVelocity, acceleration, gravity;
+		Vector3 acceleration, gravity;
 		switch(movementType){
 		case MovementType.GROUNDED : 
 			GroundedMovement(ref currentState, out acceleration, out gravity);
@@ -180,8 +180,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			AirborneMovement(ref currentState, out acceleration, out gravity);
 			break;
 		case MovementType.SWIMMING : 
-			acceleration = Vector3.zero;
-			gravity = Physics.gravity;
+			WaterMovement(ref currentState, out acceleration, out gravity);
 			break;
 		case MovementType.LADDER : 
 			acceleration = Vector3.zero;
@@ -190,9 +189,10 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		default : 
 			throw new UnityException("Unsupported MovementType \"" + movementType.ToString() + "\"");
 		}
-
+		//TODO the whole shebang about the incoming OWN velocity. when's it determined?
 		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
 		currentState.outgoingVelocity = rb.velocity;
+		currentState.outgoingOwnVelocity = GetRelativeVelocity(rb.velocity, currentState.surfacePoint);
 
 		Debug.DrawLine(DEBUG_lastPos, rb.transform.position, (currentState.onGround ? Color.green : Color.red), 10f);
 		Debug.DrawRay(rb.transform.position, Vector3.up * 0.1f, Color.white, 10f);
@@ -383,11 +383,11 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		if(lastState.jumped) return;
 		if(!lastState.onGround) return;
 		if(!lastState.onSolidGround) return;
-		if(!currentState.velocityComesFromMove) return;
+//		if(!currentState.velocityComesFromMove) return;
 		Vector3 start = rb.transform.position + (rb.transform.up * col.radius);
 //		Vector3 dir = -lastState.surfacePoint.normal;
 		Vector3 dir = (lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//this is smoother... less jerky...
-		float dist = col.radius + (2.5f * moveSpeedRegular * Time.fixedDeltaTime);
+		float dist = col.radius + (2.5f * moveSpeedRegular * Time.fixedDeltaTime);		//TODO can i go shorter? because i use the average now?
 		int mask = LayerMaskUtils.CreateMask(rb.gameObject.layer);	//TODO proper mask
 		RaycastHit hit;
 		Debug.DrawRay(start, dir.normalized * dist, Color.magenta, 10f);
@@ -456,11 +456,11 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			if(currentSpeed < moveSpeedSprint){
 //				Vector3 desiredVelocity = inputVector * GetHeightAppropriateSpeed();	//TODO and crouch and sprint..
 				Vector3 desiredVelocity = inputVector * GetDesiredSpeed(currentState);
-				outputAcceleration += ClampedAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
+				outputAcceleration += ClampedDeltaVAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
 			}//redirecting
 			else{
 				Vector3 desiredVelocity = Vector3.Lerp(rb.transform.forward, inputVector, inputVector.magnitude) * currentSpeed;
-				outputAcceleration += ClampedAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
+				outputAcceleration += ClampedDeltaVAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
 			}
 			if(keyJump.GetKey()){
 				//TODO make it possible for gravity to go sideways
@@ -498,11 +498,48 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			outputAcceleration = tempAccel;
 		}else{
 			if(currentGroundSpeed < moveAirAutoDecelSpeed){
-				outputAcceleration = ClampedAcceleration(Horizontalized(currentVelocity), desiredVector, moveAirAutoDeceleration);
+				outputAcceleration = ClampedDeltaVAcceleration(Horizontalized(currentVelocity), desiredVector, moveAirAutoDeceleration);
 			}else{
 				outputAcceleration = Vector3.zero;
 			}
 		}
+		outputGravity = Physics.gravity;
+	}
+
+	void WaterMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity) {
+		Vector3 currentVelocity = currentState.incomingOwnVelocity;
+		Vector3 inputVector = head.transform.TransformDirection(currentState.rawInput);
+		if(keyJump.GetKey()){
+			inputVector += rb.transform.up;
+			if(inputVector.sqrMagnitude > 1f){
+				inputVector = inputVector.normalized;
+			}
+		}
+		float desiredSpeed = GetDesiredSpeed(currentState);
+		Vector3 desiredVector = inputVector * desiredSpeed;
+		Vector3 tempAccel = inputVector * moveAcceleration;
+		float maxAccel = tempAccel.magnitude;	//no more acceleration than this!
+
+		if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
+			desiredVector = inputVector.normalized * currentVelocity.magnitude;
+			tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
+		}else{
+			Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
+			if(tempVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
+				desiredVector = tempVelocity.normalized * desiredVector.magnitude;
+				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
+			}
+		}
+
+		//TODO if on ground in water, project velocity on it
+		if(currentState.onSolidGround){
+			Vector3 surfaceNormal = currentState.surfacePoint.normal;
+			if(Vector3.Dot(surfaceNormal, tempAccel) < 0f){
+				tempAccel = Vector3.ProjectOnPlane(tempAccel, currentState.surfacePoint.normal);
+			}
+		}
+
+		outputAcceleration = tempAccel;
 		outputGravity = Physics.gravity;
 	}
 
@@ -550,10 +587,15 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		return Vector3.Project(vector, rb.transform.up);
 	}
 
-	Vector3 ClampedAcceleration (Vector3 currentVelocity, Vector3 targetVelocity, float maxAccel) {
+	Vector3 ClampedDeltaVAcceleration (Vector3 currentVelocity, Vector3 targetVelocity, float maxAccel) {
 		Vector3 deltaV = targetVelocity - currentVelocity;
+//		Vector3 tempAccel = deltaV.normalized * maxAccel;
+//		if((tempAccel * Time.fixedDeltaTime).sqrMagnitude > deltaV.sqrMagnitude){
+//			tempAccel = deltaV / Time.fixedDeltaTime;
+//		}
+//		return tempAccel;
 		Vector3 deltaVAccel = deltaV / Time.fixedDeltaTime;
-		if(deltaVAccel.magnitude > maxAccel){
+		if(deltaVAccel.sqrMagnitude > (maxAccel * maxAccel)){
 			return deltaV.normalized * maxAccel;
 		}else{
 			return deltaVAccel;

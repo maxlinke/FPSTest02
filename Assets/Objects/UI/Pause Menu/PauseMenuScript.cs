@@ -20,14 +20,15 @@ public class PauseMenuScript : MonoBehaviour {
 
 	//TODO complete overhaul of this.
 	//first off : take the logic off the gui. it should be on some gamecontroller-esque object
-	//secondly : make use of an observer pattern via IPausee (and maybe find a better name for it?)
+	//secondly : make use of an observer pattern via IPauseObserver (and maybe find a better name for it?)
 
 
 	void Start () {
 		keybinder.SetActive(false);
 		ClosePauseMenu();
 		paused = false;
-		optionsMenuStateMemory = true;	//TODO change before build
+//		optionsMenuStateMemory = true;	//TODO change before build
+		optionsMenuStateMemory = false;
 	}
 	
 	void Update () {

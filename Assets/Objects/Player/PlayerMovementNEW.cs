@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeybindObserver {
+//even though there is no regular update/fixedupdate monobehavior is still required because of onCollisionEnter etc
+public class PlayerMovementNEW : MonoBehaviour {
 
 	enum MovementType {
 		GROUNDED,
@@ -65,9 +66,9 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		public Vector3 outgoingVelocity;
 
 		public Vector3 incomingOwnVelocity;
-		public Vector2 outgoingOwnVelocity;
+		public Vector3 outgoingOwnVelocity;
 
-		public Vector3 rawInput;
+		public MoveInput moveInput;	
 
 		public bool velocityComesFromMove;
 
@@ -84,6 +85,22 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	}
 
+	public struct MoveInput {
+
+		public readonly Vector3 directionalInput;
+		public readonly bool jumpInput;
+		public readonly bool crouchInput;			//these are the "external" state
+		public readonly bool sprintInput;			//so if it's true that's as if the crouch-/sprint-button is held
+
+		public MoveInput (Vector3 directionalInput, bool jumpInput, bool crouchInput, bool sprintInput) {
+			this.directionalInput = directionalInput;
+			this.jumpInput = jumpInput;
+			this.crouchInput = crouchInput;
+			this.sprintInput = sprintInput;
+		}
+
+	}
+
 	[Header("Movement parameters")]
 	[SerializeField] float moveSpeedRegular = 8f;
 	[SerializeField] float moveSpeedCrouch = 4f;
@@ -91,43 +108,32 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	[SerializeField] float moveAcceleration = 256f;
 	[SerializeField] float moveJumpHeight = 1.5f;
 	[SerializeField] float moveMaxSlopeAngle = 55f;
-	[SerializeField] float moveMaxStepOffset = 0.3f;
+//	[SerializeField] float moveMaxStepOffset = 0.3f;
 	[SerializeField] float moveSlopeSlideStartAngle = 45f;
-	[SerializeField] float moveSlideControl = 12f;
+	[SerializeField] float moveMinSlideControl = 0.2f;
+	[SerializeField] float moveSlideControlFalloffHarshness = 1f;
 	[SerializeField] float moveAirControl = 4f;
 	[SerializeField] float moveAirAutoDecelSpeed = 10f;
 	[SerializeField] float moveAirAutoDeceleration = 5f;
+	[SerializeField] float moveLadderJumpSpeed = 4f;
+	[SerializeField] float moveLadderHorizontalFactor = 0.33f;
 
 	[Header("Other parameters")]
 	[SerializeField] float crouchHeight = 0.9f;
 	[SerializeField] float normalHeight = 1.9f;
 	[SerializeField] float eyeOffsetFromTop = 0.1f;
 	[SerializeField] float normalGravity = 29.43f;
-	[SerializeField] float normalStaticFriction = 0.5f;
-	[SerializeField] float normalDynamicFriction = 0.5f;
+	[SerializeField] float normalFriction = 0.5f;
 	[SerializeField] float waterTriggerOffsetFromEyes = 0.2f;
 
 	GameObject head;
 	CapsuleCollider col;
 	Rigidbody rb;
 	PlayerHealthSystem healthSystem;
-	PhysicMaterial pm;
+	IGUI gui;
 
 	float jumpSpeed;
-
-	DoubleKey keyMoveForward;
-	DoubleKey keyMoveBackward;
-	DoubleKey keyMoveLeft;
-	DoubleKey keyMoveRight;
-
-	DoubleKey keyJump;
-	DoubleKey keyCrouchToggle;
-	DoubleKey keySprintToggle;
-	DoubleKey keyCrouchHold;
-	DoubleKey keySprintHold;
-
-	bool isSprinting;
-	bool wasSprinting;
+	int collisionLayerMaskForRaycasting;
 
 	List<ContactPoint> contactPoints;
 	StateData lastState;
@@ -141,89 +147,71 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
-	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthSystem phs) {
+	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthSystem phs, IGUI gui) {
 		this.rb = rb;
 		this.col = worldCollider;
 		this.head = head;
 		this.healthSystem = phs;
-		AddSelfToPlayerPrefObserverList();
-		LoadKeys();
+		this.gui = gui;
 		contactPoints = new List<ContactPoint>();
-		pm = col.material;
 		col.height = normalHeight;
 		col.center = new Vector3(0f, col.height/2f, 0f);
 		jumpSpeed = Mathf.Sqrt(2f * normalGravity * moveJumpHeight);
+		string logString = "";
+		collisionLayerMaskForRaycasting = LayerMaskUtils.CreateMask(this.rb.gameObject.layer);
+		collisionLayerMaskForRaycasting &= ~LayerMask.GetMask("Water");
 	}
 	
-	void Update () {
-//		CrouchManager();
-		if(Input.GetKeyDown(KeyCode.Mouse1)) rb.velocity += head.transform.forward * 50f;
+	public void ExecuteUpdate () {
+		//nothing :P
 	}
 
-	void FixedUpdate () {
+	public void ExecuteFixedUpdate (MoveInput moveInput) {
 		StateData currentState;
 		List<ContactPoint> wallPoints;
-		ManageCollisions(contactPoints, out currentState, out wallPoints);
+		ManageCollisions(contactPoints, moveInput, out currentState, out wallPoints);
 		MovementType movementType = GetMovementType(currentState);
-//		bool gotAcceleratedInbetween = (currentState.incomingVelocity.sqrMagnitude > lastState.outgoingVelocity.sqrMagnitude);
-		//debug stuff
-//		Debug.Log(movementType.ToString());
-		//TODO i guess set justJumped to false (here) before movement begins 
-		//and do the sticking in the collision managing or after that
-		//and if sticking is done, ref the surfacepoint and overwrite it with a "synthetic" one
 		Vector3 acceleration, gravity;
+		float friction;
 		switch(movementType){
 		case MovementType.GROUNDED : 
-			GroundedMovement(ref currentState, out acceleration, out gravity);
+			GroundedMovement(ref currentState, lastState, out acceleration, out gravity, out friction);
 			break;
 		case MovementType.AIRBORNE : 
-			AirborneMovement(ref currentState, out acceleration, out gravity);
+			AirborneMovement(ref currentState, out acceleration, out gravity, out friction);
 			break;
 		case MovementType.SWIMMING : 
-			WaterMovement(ref currentState, out acceleration, out gravity);
+			WaterMovement(ref currentState, out acceleration, out gravity, out friction);
 			break;
 		case MovementType.LADDER : 
-			acceleration = Vector3.zero;
-			gravity = Physics.gravity;
+			LadderMovement(ref currentState, out acceleration, out gravity, out friction);
 			break;
 		default : 
 			throw new UnityException("Unsupported MovementType \"" + movementType.ToString() + "\"");
 		}
-		//TODO the whole shebang about the incoming OWN velocity. when's it determined?
+
+		if(Input.GetKey(KeyCode.R)) currentState.velocityComesFromMove = true;
+
+		ProjectOnAllSolidObjects(ref acceleration, wallPoints);
 		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
 		currentState.outgoingVelocity = rb.velocity;
-		currentState.outgoingOwnVelocity = GetRelativeVelocity(rb.velocity, currentState.surfacePoint);
+		currentState.outgoingOwnVelocity = GetRelativeVelocity(rb.velocity, currentState.surfacePoint);		//TODO refactor to take currentState instead of just surfacePoint
+		col.material.staticFriction = friction;
+		col.material.dynamicFriction = friction;
 
 		Debug.DrawLine(DEBUG_lastPos, rb.transform.position, (currentState.onGround ? Color.green : Color.red), 10f);
 		Debug.DrawRay(rb.transform.position, Vector3.up * 0.1f, Color.white, 10f);
 		DEBUG_lastPos = rb.transform.position;
+		string output = currentState.velocityComesFromMove.ToString() + "\n";
+		output += "civ  " + currentState.incomingVelocity.magnitude + "\n";
+		output += "ciov  " + currentState.incomingOwnVelocity.magnitude + "\n";
+		output += "lov  " + lastState.outgoingVelocity.magnitude + "\n";
+		output += "loov  " + lastState.outgoingOwnVelocity.magnitude + "\n";
+		gui.SetInteractDisplayMessage(output);
 		//save and/or reset fields
 		lastState = currentState;
 		contactPoints.Clear();
 		canSwim = false;	//needs to be reset as it is done in triggerstay
-	}
-
-	//IPlayerPrefObserver / IPlayerPrefKeybindObserver / loading stuff
-
-	public void AddSelfToPlayerPrefObserverList () {
-		PlayerPrefManager.AddObserver(this);
-	}
-
-	public void NotifyKeybindsChanged () {
-		LoadKeys();
-	}
-
-	void LoadKeys () {
-		keyMoveForward = DoubleKey.FromPlayerPrefs("key_move_forward");
-		keyMoveBackward = DoubleKey.FromPlayerPrefs("key_move_backward");
-		keyMoveLeft = DoubleKey.FromPlayerPrefs("key_move_left");
-		keyMoveRight = DoubleKey.FromPlayerPrefs("key_move_right");
-
-		keyJump = DoubleKey.FromPlayerPrefs("key_jump");
-		keyCrouchToggle = DoubleKey.FromPlayerPrefs("key_crouch_toggle");
-		keySprintToggle = DoubleKey.FromPlayerPrefs("key_sprint_toggle");
-		keyCrouchHold = DoubleKey.FromPlayerPrefs("key_crouch_hold");
-		keySprintHold = DoubleKey.FromPlayerPrefs("key_sprint_hold");
 	}
 
 	//collisions
@@ -247,7 +235,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	void OnTriggerStay (Collider otherCollider) {
 		WaterBody waterBody = otherCollider.gameObject.GetComponent<WaterBody>();
 		if(waterBody != null){
-			if(head.transform.position.y - waterTriggerOffsetFromEyes < waterBody.waterLevel){
+			if(head.transform.position.y - waterTriggerOffsetFromEyes < waterBody.waterLevel){		//TODO independent of head.transform.y, rather something gravity based i guess?
 				canSwim = true;
 			}
 		}
@@ -259,14 +247,19 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	//pre movement
 
-	void ManageCollisions (List<ContactPoint> contactPoints, out StateData currentState, out List<ContactPoint> wallPoints) {
+	void ManageCollisions (List<ContactPoint> contactPoints, MoveInput moveInput, out StateData currentState, out List<ContactPoint> wallPoints) {
 		RemoveInvalidContactPoints(ref contactPoints);
 		SurfacePoint surfacePoint = GetSurfacePoint(contactPoints);
-		List<ContactPoint> stepPoints;
-		DetermineWallAndStepPoints(contactPoints, surfacePoint, out wallPoints, out stepPoints);
-		currentState = GetStateData(surfacePoint, wallPoints, lastState);
+//		List<ContactPoint> stepPoints;
+//		DetermineWallAndStepPoints(contactPoints, surfacePoint, out wallPoints, out stepPoints);
+		DetermineWallPoints(contactPoints, surfacePoint, out wallPoints);
+		currentState = GetStateData(surfacePoint, moveInput, wallPoints, lastState);
 //		StepUpSteps(ref currentState, lastState, stepPoints);	//TODO it's fucky, so it's commented out.
-		StickToGroundIfNecessary(ref currentState, lastState);
+		bool overWroteStateData;
+		StickToGroundIfNecessary(ref currentState, lastState, out overWroteStateData);
+		if(overWroteStateData){
+			wallPoints.Clear();
+		}
 		ManageFallDamage(currentState, lastState);
 	}
 
@@ -288,37 +281,49 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
-	void DetermineWallAndStepPoints (List<ContactPoint> contactPoints, SurfacePoint surfacePoint, out List<ContactPoint> wallPoints, out List<ContactPoint> stepPoints) {
+	void DetermineWallPoints (List<ContactPoint> contactPoints, SurfacePoint surfacePoint, out List<ContactPoint> wallPoints) {
 		wallPoints = new List<ContactPoint>();
-		stepPoints = new List<ContactPoint>();
 		for(int i=0; i<contactPoints.Count; i++){
 			ContactPoint point = contactPoints[i];
 			Vector3 delta = point.point - rb.transform.position;
 			float pointOffset = (delta - Horizontalized(delta)).magnitude;
 			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
-//			float pointOffset = col.radius * (1f - point.normal.y);		//dot(normal, up) == normal.y
 			if(pointAngle > moveMaxSlopeAngle){
 				wallPoints.Add(point);
-			}
-			if(pointOffset > 0f && pointOffset <= moveMaxStepOffset){
-				if(surfacePoint == null){
-					stepPoints.Add(point);
-				}else if(!surfacePoint.originalContactPoint.Equals(point)){	//i don't have to worry about the original contact point being null here
-					stepPoints.Add(point);
-				}
 			}
 		}
 	}
 
-	StateData GetStateData (SurfacePoint surfacePoint, List<ContactPoint> wallPoints, StateData lastState) {
+//	void DetermineWallAndStepPoints (List<ContactPoint> contactPoints, SurfacePoint surfacePoint, out List<ContactPoint> wallPoints, out List<ContactPoint> stepPoints) {
+//		wallPoints = new List<ContactPoint>();
+//		stepPoints = new List<ContactPoint>();
+//		for(int i=0; i<contactPoints.Count; i++){
+//			ContactPoint point = contactPoints[i];
+//			Vector3 delta = point.point - rb.transform.position;
+//			float pointOffset = (delta - Horizontalized(delta)).magnitude;
+//			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
+//			if(pointAngle > moveMaxSlopeAngle){
+//				wallPoints.Add(point);
+//			}
+//			if(pointOffset > 0f && pointOffset <= moveMaxStepOffset){
+//				if(surfacePoint == null){
+//					stepPoints.Add(point);
+//				}else if(!surfacePoint.originalContactPoint.Equals(point)){	//i don't have to worry about the original contact point being null here
+//					stepPoints.Add(point);
+//				}
+//			}
+//		}
+//	}
+
+	StateData GetStateData (SurfacePoint surfacePoint, MoveInput moveInput, List<ContactPoint> wallPoints, StateData lastState) {
 		StateData currentState = new StateData();
 		currentState.surfacePoint = surfacePoint;
 		currentState.incomingVelocity = rb.velocity;
 		currentState.incomingOwnVelocity = GetRelativeVelocity(rb.velocity, surfacePoint);
-		float currentOwnSpeed = currentState.incomingVelocity.magnitude;
-		float lastOwnSpeed = lastState.incomingVelocity.magnitude;
-		currentState.velocityComesFromMove = (lastState.velocityComesFromMove && (currentOwnSpeed < lastOwnSpeed));
-		currentState.rawInput = GetInputVector();
+		float currentOwnSpeed = currentState.incomingOwnVelocity.magnitude;
+		float lastOwnSpeed = lastState.outgoingOwnVelocity.magnitude;
+		currentState.velocityComesFromMove = (lastState.velocityComesFromMove && (currentOwnSpeed <= lastOwnSpeed));
+		currentState.moveInput = moveInput;
 
 		currentState.onGround = GetIsGrounded(surfacePoint, lastState);
 		if(currentState.onGround){
@@ -330,91 +335,93 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		return currentState;
 	}
 
-	void StepUpSteps (ref StateData currentState, StateData lastState, List<ContactPoint> stepPoints) {
-		if(!currentState.onGround) return;
-		if(!currentState.velocityComesFromMove) return;
-		if(currentState.rawInput.magnitude > 0.5f){	//TODO again with the weird condition for "gotInput" but it works..
-			SurfacePoint surfacePoint = currentState.surfacePoint;
-			for(int i=0; i<stepPoints.Count; i++){
-				ContactPoint point = stepPoints[i];
-				Vector3 delta = point.point - surfacePoint.point;
-				float deltaHeight = (delta - Horizontalized(delta)).magnitude;
-				bool pointIsAbove = deltaHeight > 0.01f;	//TODO hardcoded values, yum...
-				bool colliderStatic = ColliderIsStatic(point.otherCollider);
-				Vector3 flattenedNormal = Horizontalized(point.normal).normalized;
-				Vector3 flattenedVelocity = Horizontalized(currentState.incomingOwnVelocity).normalized;
-				float directionDot = Vector3.Dot(flattenedNormal, flattenedVelocity);
-				if(pointIsAbove && colliderStatic && (directionDot < -0.5f)){
-					Vector3 surfPointToStepPoint = point.point - surfacePoint.point;
-					Vector3 projectedVector = Vector3.ProjectOnPlane(surfPointToStepPoint, surfacePoint.normal);
-					Vector3 projectedPoint = surfacePoint.point + projectedVector;
-					float distance = Vector3.Distance(projectedPoint, point.point);
-					if(distance > 0.05f){	//if the point is at least 5cm out of the current move plane (make sure it's not the top of a ramp or something)
-						Vector3 start = point.point + (point.normal * col.radius) + (rb.transform.up * 0.01f);
-						Vector3 dir = -point.normal;
-						float dist = col.radius + 0.1f;
-						int mask = LayerMaskUtils.CreateMask(rb.gameObject.layer);	//TODO proper mask
-						RaycastHit hit;
-						Debug.DrawRay(start, dir.normalized * dist, Color.cyan, 10f);
-						if(Physics.Raycast(start, dir, out hit, dist, mask)){
-							float angleDifference = Vector3.Angle(point.normal, hit.normal);
-							if(angleDifference > 5f){
-								//TODO the following is nearly identical with ground sticking. maybe put it in an extra method
-								Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) - (rb.transform.up * col.radius);
-								//debug
-								Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
-								Debug.LogError("STEPPING");
+//	void StepUpSteps (ref StateData currentState, StateData lastState, List<ContactPoint> stepPoints) {
+//		if(!currentState.onGround) return;
+//		if(!currentState.velocityComesFromMove) return;
+//		if(currentState.moveInput.directionalInput.magnitude > 0.5f){	//TODO again with the weird condition for "gotInput" but it works..
+//			SurfacePoint surfacePoint = currentState.surfacePoint;
+//			for(int i=0; i<stepPoints.Count; i++){
+//				ContactPoint point = stepPoints[i];
+//				Vector3 delta = point.point - surfacePoint.point;
+//				float deltaHeight = (delta - Horizontalized(delta)).magnitude;
+//				bool pointIsAbove = deltaHeight > 0.01f;	//TODO hardcoded values, yum...
+//				bool colliderStatic = ColliderIsStatic(point.otherCollider);
+//				Vector3 flattenedNormal = Horizontalized(point.normal).normalized;
+//				Vector3 flattenedVelocity = Horizontalized(currentState.incomingOwnVelocity).normalized;
+//				float directionDot = Vector3.Dot(flattenedNormal, flattenedVelocity);
+//				if(pointIsAbove && colliderStatic && (directionDot < -0.5f)){
+//					Vector3 surfPointToStepPoint = point.point - surfacePoint.point;
+//					Vector3 projectedVector = Vector3.ProjectOnPlane(surfPointToStepPoint, surfacePoint.normal);
+//					Vector3 projectedPoint = surfacePoint.point + projectedVector;
+//					float distance = Vector3.Distance(projectedPoint, point.point);
+//					if(distance > 0.05f){	//if the point is at least 5cm out of the current move plane (make sure it's not the top of a ramp or something)
+//						Vector3 start = point.point + (point.normal * col.radius) + (rb.transform.up * 0.01f);
+//						Vector3 dir = -point.normal;
+//						float dist = col.radius + 0.1f;
+//						RaycastHit hit;
+//						Debug.DrawRay(start, dir.normalized * dist, Color.cyan, 10f);
+//						if(Physics.Raycast(start, dir, out hit, dist, collisionLayerMaskForRaycasting)){
+//							float angleDifference = Vector3.Angle(point.normal, hit.normal);
+//							if(angleDifference > 5f){
+//								//TODO the following is nearly identical with ground sticking. maybe put it in an extra method
+//								Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) - (rb.transform.up * col.radius);
+//								//debug
+//								Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
+//								Debug.LogError("STEPPING");
 //								rb.MovePosition(properPosition);
-								rb.transform.position = properPosition;
-								rb.velocity = lastState.incomingVelocity - (hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime);
-								//overwrite state data with new info
-								SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
-								currentState = GetStateData(newSurfacePoint, new List<ContactPoint>(), lastState);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+//								rb.velocity = lastState.incomingVelocity - (hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime);
+//								//overwrite state data with new info
+//								SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
+//								currentState = GetStateData(newSurfacePoint, currentState.moveInput, new List<ContactPoint>(), lastState);
+//							}
+//						}
+//					}
+//				}
+//			}
+//		}
+//	}
 
-	void StickToGroundIfNecessary (ref StateData currentState, StateData lastState) {
+	void StickToGroundIfNecessary (ref StateData currentState, StateData lastState, out bool overwroteStateData) {
+		overwroteStateData = false;
 		if(currentState.onGround) return;
+		if(currentState.onLadder) return;
+		if(currentState.inWater) return;	//maybe simply check if movementtype (last one) was grounded?
 		if(lastState.jumped) return;
 		if(!lastState.onGround) return;
 		if(!lastState.onSolidGround) return;
-//		if(!currentState.velocityComesFromMove) return;
+		if(!currentState.velocityComesFromMove) return;
 		Vector3 start = rb.transform.position + (rb.transform.up * col.radius);
-//		Vector3 dir = -lastState.surfacePoint.normal;
-		Vector3 dir = (lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//this is smoother... less jerky...
-		float dist = col.radius + (2.5f * moveSpeedRegular * Time.fixedDeltaTime);		//TODO can i go shorter? because i use the average now?
-		int mask = LayerMaskUtils.CreateMask(rb.gameObject.layer);	//TODO proper mask
+//		Vector3 dir = -lastState.surfacePoint.normal;	//this works more often
+//		Vector3 dir = lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//this is smoother... less jerky...
+		Vector3 dir = (2f * lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//best of both worlds
+		float dist = col.radius + (2.5f * moveSpeedRegular * Time.fixedDeltaTime);
 		RaycastHit hit;
 		Debug.DrawRay(start, dir.normalized * dist, Color.magenta, 10f);
-		if(Physics.Raycast(start, dir, out hit, dist, mask)){	//TODO proper layermask that doesn't COLLIDE with water
+		if(Physics.Raycast(start, dir, out hit, dist, collisionLayerMaskForRaycasting)){	
 			bool hitAngleOkay = (Vector3.Angle(hit.normal, rb.transform.up) <= moveMaxSlopeAngle);
 			bool angleBetweenVelocityAndHitOkay = (Vector3.Angle(currentState.incomingOwnVelocity, hit.normal) < 90f);
 			bool colliderSolid = ColliderIsSolid(hit.collider);
 			if(hitAngleOkay && angleBetweenVelocityAndHitOkay && colliderSolid){
-				Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) - (rb.transform.up * col.radius);	//TODO why the 0.05f?
+//				Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) - (rb.transform.up * col.radius);	//(old) why the 0.05f? it works fine without... it seems...
+				Vector3 properPosition = hit.point + (hit.normal * col.radius) - (rb.transform.up * col.radius);	
+				Vector3 projectedVelocity = Vector3.ProjectOnPlane(currentState.incomingVelocity, hit.normal).normalized * currentState.incomingVelocity.magnitude;
+				Vector3 additionalGravity = -hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime;
 				rb.MovePosition(properPosition);
-				rb.velocity = Vector3.ProjectOnPlane(currentState.incomingVelocity, hit.normal) - (hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime);
+				rb.velocity = projectedVelocity + additionalGravity;
 				//debug
 				Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
 				Debug.LogError("HIT! STICKING!");
 				//overwrite state data with new info
 				SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
-				currentState = GetStateData(newSurfacePoint, new List<ContactPoint>(), lastState);
+				currentState = GetStateData(newSurfacePoint, currentState.moveInput, new List<ContactPoint>(), lastState);
+				overwroteStateData = true;
 			}else{
-				string message = "HIT, NO TELEPORT!\n";
-				message += "hitAngleOkay : " + hitAngleOkay + "\n";
-				message += "angleBetweenVelocityAndHitOkay : " + angleBetweenVelocityAndHitOkay + "\n";
-				message += "colliderSolid : " + colliderSolid;
-				if(!colliderSolid) message += " (" + hit.collider.name + ")";
-				Debug.LogError(message);
+				Debug.DrawRay(hit.point, Vector3.up, Color.red, 10f);
+				Debug.LogError("HIT! No stick tho! " + hitAngleOkay + " " + angleBetweenVelocityAndHitOkay + " " + colliderSolid);
 			}
 		}else{
-			Debug.LogError("MISS!");
+			Debug.DrawRay(rb.transform.position, Vector3.up, Color.red, 10f);
+			Debug.LogError("No hit, no stick...");
 		}
 	}
 
@@ -442,53 +449,88 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 
 	//actual movement
 
-	//TODO bring back velocitycomesfrommove. if it doesn't set the friction to zero, otherwise, idk...
-	void GroundedMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity) {
-		outputAcceleration = Vector3.zero;
+	void GroundedMovement (ref StateData currentState, StateData lastState, out Vector3 outputAcceleration, out Vector3 outputGravity, out float outputFriction) {
 		SurfacePoint surfacePoint = currentState.surfacePoint;
 		Vector3 currentVelocity = currentState.incomingOwnVelocity;
 		float currentSpeed = currentVelocity.magnitude;
-		Vector3 inputVector = rb.transform.TransformDirection(currentState.rawInput);
-		//slope ok
+		Vector3 inputVector = rb.transform.TransformDirection(currentState.moveInput.directionalInput);
+		Vector3 projectedInput = GetSurfaceMoveVector(inputVector, surfacePoint.normal);
+		float desiredSpeed = GetDesiredSpeed(currentState);
 		if(currentState.onValidGround){
-			inputVector = GetSurfaceMoveVector(inputVector, surfacePoint.normal);
-			//regular accel/decel
-			if(currentSpeed < moveSpeedSprint){
-//				Vector3 desiredVelocity = inputVector * GetHeightAppropriateSpeed();	//TODO and crouch and sprint..
-				Vector3 desiredVelocity = inputVector * GetDesiredSpeed(currentState);
-				outputAcceleration += ClampedDeltaVAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
-			}//redirecting
-			else{
-				Vector3 desiredVelocity = Vector3.Lerp(rb.transform.forward, inputVector, inputVector.magnitude) * currentSpeed;
-				outputAcceleration += ClampedDeltaVAcceleration(currentVelocity, desiredVelocity, moveAcceleration);
+			Vector3 desiredVector = projectedInput * desiredSpeed;
+			Vector3 tempAccel = projectedInput * moveAcceleration;
+			float maxAccel = tempAccel.magnitude;
+			if(!lastState.onGround){	//if just landed
+				currentState.velocityComesFromMove = (currentSpeed <= desiredSpeed);
 			}
-			if(keyJump.GetKey()){
-				//TODO make it possible for gravity to go sideways
-				//so horizontalized should stay in local space
-				//and jumpvelocity should go along rb.transform.up (or just rb.transform.TransformDirection(...))
-				//and all the surface data should work with rb.transform.up...
-				outputAcceleration = Horizontalized(outputAcceleration) + (rb.transform.up * jumpSpeed / Time.fixedDeltaTime) - Verticalized(currentVelocity / Time.fixedDeltaTime);
+			if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
+				desiredVector = projectedInput.normalized * currentSpeed;
+				if((currentSpeed <= desiredSpeed) && currentState.velocityComesFromMove){	//case : deceleration
+					maxAccel = moveAcceleration;
+				}
+				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
+				Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
+			}else{
+				Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
+				if(tempVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
+					desiredVector = tempVelocity.normalized * desiredVector.magnitude;
+					tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
+				}
+				if(tempVelocity.sqrMagnitude >= currentVelocity.sqrMagnitude){
+					currentState.velocityComesFromMove = true;
+				}
+			}
+
+			if(currentState.moveInput.jumpInput){
+				tempAccel = Horizontalized(tempAccel) + (rb.transform.up * jumpSpeed / Time.fixedDeltaTime) - Verticalized(currentVelocity / Time.fixedDeltaTime);
 				currentState.jumped = true;
 			}
-		}
-		//slope to steep
-		else{
 
+			float slopeLerpFactor = Mathf.Clamp01((surfacePoint.angle - moveSlopeSlideStartAngle) / (moveMaxSlopeAngle - moveSlopeSlideStartAngle));
+			Vector3 tempGravity = Vector3.Lerp(-surfacePoint.normal, -rb.transform.up, slopeLerpFactor) * Physics.gravity.magnitude;
+			if(!currentState.onSolidGround){
+				tempGravity = Physics.gravity;
+			}
+//			outputAcceleration = tempAccel + ((1f - slopeLerpFactor) * Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal));
+			outputAcceleration = tempAccel;
+			outputGravity = tempGravity;
+			outputFriction = (1f - slopeLerpFactor) * normalFriction;
 		}
-		if((currentVelocity + (outputAcceleration * Time.fixedDeltaTime)).magnitude < moveSpeedSprint) currentState.velocityComesFromMove = true;
-		float lerpFactor = Mathf.Clamp01((surfacePoint.angle - moveSlopeSlideStartAngle) / (moveMaxSlopeAngle - moveSlopeSlideStartAngle));
-		outputGravity = Vector3.Lerp(-surfacePoint.normal, Vector3.down, lerpFactor) * Physics.gravity.magnitude;
+		else{
+			//TODO allow steering and stuff but it cannot affect the "downward" motion
+			Vector3 downward = Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal);
+			Vector3 downwardVelocity = Vector3.Project(currentVelocity, downward);
+			Vector3 lateralVelocity = currentVelocity - downwardVelocity;
+			Vector3 tempAccel = projectedInput * moveAcceleration;
+
+			Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
+			Vector3 lateralTempVelocity = tempVelocity - downwardVelocity;
+			if(lateralTempVelocity.sqrMagnitude > (desiredSpeed * desiredSpeed)){
+				Vector3 desiredVector = tempVelocity.normalized * lateralVelocity.magnitude;
+				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, moveAcceleration);
+			}
+			if(Vector3.Dot(tempAccel, downward) < 0f){
+				float x = Vector3.Dot(tempAccel, downward) / Vector3.Dot(downward, downward);
+				tempAccel -= x * downward;
+			}
+			tempAccel = Vector3.ProjectOnPlane(tempAccel, surfacePoint.normal);
+			currentState.velocityComesFromMove = false;
+			outputAcceleration = tempAccel;
+			outputGravity = Physics.gravity;
+			outputFriction = 0f;
+		}
+
 	}
 
-	void AirborneMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity) {
+	void AirborneMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity, out float outputFriction) {
 		Vector3 currentVelocity = currentState.incomingOwnVelocity;
-		Vector3 inputVector = rb.transform.TransformDirection(currentState.rawInput);
+		Vector3 inputVector = rb.transform.TransformDirection(currentState.moveInput.directionalInput);
 		float currentGroundSpeed = Horizontalized(currentVelocity).magnitude;
 		float desiredGroundSpeed = GetDesiredSpeed(currentState);
 		Vector3 desiredVector = inputVector * desiredGroundSpeed;
 		if(inputVector.magnitude > 0.5f){		//TODO this is a weird condition but should work for now
 			float speedModifier = Mathf.Clamp(Mathf.Sqrt(currentGroundSpeed / desiredGroundSpeed), 1f, Mathf.Infinity);
-			Vector3 tempAccel = desiredVector * speedModifier * moveAirControl ;
+			Vector3 tempAccel = desiredVector * speedModifier * moveAirControl;		//TODO and this is not acceleration...
 			Vector3 tempVelocity = Horizontalized(currentVelocity + (tempAccel * Time.fixedDeltaTime));
 			float resultGroundSpeed = tempVelocity.magnitude;
 			if((resultGroundSpeed > currentGroundSpeed) && (currentGroundSpeed > desiredGroundSpeed)){
@@ -498,18 +540,21 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 			outputAcceleration = tempAccel;
 		}else{
 			if(currentGroundSpeed < moveAirAutoDecelSpeed){
+//				currentState.velocityComesFromMove = true;		//velocity from move doesn't really matter in the air..
 				outputAcceleration = ClampedDeltaVAcceleration(Horizontalized(currentVelocity), desiredVector, moveAirAutoDeceleration);
 			}else{
 				outputAcceleration = Vector3.zero;
 			}
 		}
 		outputGravity = Physics.gravity;
+		outputFriction = 0f;
 	}
 
-	void WaterMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity) {
+	//TODO i have too much control at high speeds.. at high speeds it should be more redirect than brake...
+	void WaterMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity, out float outputFriction) {
 		Vector3 currentVelocity = currentState.incomingOwnVelocity;
-		Vector3 inputVector = head.transform.TransformDirection(currentState.rawInput);
-		if(keyJump.GetKey()){
+		Vector3 inputVector = head.transform.TransformDirection(currentState.moveInput.directionalInput);
+		if(currentState.moveInput.jumpInput){
 			inputVector += rb.transform.up;
 			if(inputVector.sqrMagnitude > 1f){
 				inputVector = inputVector.normalized;
@@ -519,7 +564,6 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		Vector3 desiredVector = inputVector * desiredSpeed;
 		Vector3 tempAccel = inputVector * moveAcceleration;
 		float maxAccel = tempAccel.magnitude;	//no more acceleration than this!
-
 		if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
 			desiredVector = inputVector.normalized * currentVelocity.magnitude;
 			tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
@@ -530,49 +574,52 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
 			}
 		}
-
-		//TODO if on ground in water, project velocity on it
 		if(currentState.onSolidGround){
 			Vector3 surfaceNormal = currentState.surfacePoint.normal;
 			if(Vector3.Dot(surfaceNormal, tempAccel) < 0f){
 				tempAccel = Vector3.ProjectOnPlane(tempAccel, currentState.surfacePoint.normal);
 			}
 		}
-
 		outputAcceleration = tempAccel;
 		outputGravity = Physics.gravity;
+		outputFriction = normalFriction;
 	}
 
-	//managers
-
-	void CrouchManager (ref bool isCrouching) {
-		bool crouchWish = isCrouching;
-		if(keyCrouchHold.GetKey()) crouchWish = true;
-		if(keyCrouchHold.GetKeyUp()) crouchWish = false;
-		if(keyCrouchToggle.GetKeyDown()){
-			if(!isCrouching) crouchWish = true;
-			else crouchWish = false;
+	void LadderMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity, out float outputFriction) {
+		Vector3 currentVelocity = currentState.incomingOwnVelocity;
+		Vector3 inputVector = head.transform.TransformDirection(currentState.moveInput.directionalInput);
+		Vector3 ladderNormal = currentState.ladderPoint.normal;
+		Vector3 projectedInput = Vector3.ProjectOnPlane(inputVector, ladderNormal);
+		float desiredSpeed = GetDesiredSpeed(currentState);
+		Vector3 desiredVector = projectedInput * desiredSpeed;
+//		float maxAccel = inputVector.magnitude * moveAcceleration;
+		float maxAccel = moveAcceleration;
+		Vector3 tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
+		if(currentState.moveInput.jumpInput && (Vector3.Dot(head.transform.forward, ladderNormal) > 0f)){
+			Vector3 jumpDirection = (ladderNormal + head.transform.forward).normalized;
+			tempAccel += jumpDirection * moveLadderJumpSpeed / Time.fixedDeltaTime;
+			outputGravity = Physics.gravity;
+			outputFriction = 0f;
+		}else{
+			Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
+			float tempSpeed = tempVelocity.magnitude;
+			float frictionFactor = ((tempSpeed > desiredSpeed) ? Mathf.Sqrt(tempSpeed/desiredSpeed) : 1f);
+			outputFriction = normalFriction * frictionFactor;
+			outputGravity = -ladderNormal * Physics.gravity.magnitude;
 		}
-		isCrouching = crouchWish;
-		//TODO can't do with the isCrouching bool that is only get (based on collider height)
-		//i somehow need to pass out the result and modify the height with time
-		//crouch/uncrouch TIME synced with ANIMATIONS or animator.setfloat to be between standing and crouching
-	}
-
-	//TODO this is THUS FAR the same as crouchmanager
-	//i can obviously do this in one method, but what would i name it?
-	void SprintManager (ref bool isSprinting) {
-		bool sprintWish = isSprinting;
-		if(keySprintHold.GetKey()) sprintWish = true;
-		if(keySprintHold.GetKeyUp()) sprintWish = false;
-		if(keySprintToggle.GetKeyDown()){
-			if(!isSprinting) sprintWish = true;
-			else sprintWish = false;
-		}
-		isSprinting = sprintWish;
+		outputAcceleration = tempAccel;
 	}
 
 	//utility
+
+	void ProjectOnAllSolidObjects (ref Vector3 vector, List<ContactPoint> contacts) {
+		for(int i=0; i<contacts.Count; i++){
+			Vector3 normal = contacts[i].normal;
+			if(ColliderIsSolid(contacts[i].otherCollider) && (Vector3.Dot(vector, normal) < 0f)){
+				vector = Vector3.ProjectOnPlane(vector, normal);
+			}
+		}
+	}
 
 	Vector3 ProjectOnPlaneAlongVector (Vector3 input, Vector3 normal, Vector3 projectVector) {
 		float x = Vector3.Dot(normal, input) / Vector3.Dot(normal, projectVector);
@@ -602,28 +649,19 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		}
 	}
 
-	Vector3 GetInputVector () {
-		int keyboardZ = (keyMoveForward.GetKey() ? 1 : 0) + (keyMoveBackward.GetKey() ? -1 : 0);
-		int keyboardX = (keyMoveLeft.GetKey() ? -1 : 0) + (keyMoveRight.GetKey() ? 1 : 0);
-		Vector3 keyboardInput = new Vector3(keyboardX, 0f, keyboardZ);
-		float controllerX = Input.GetAxisRaw("LX");
-		float controllerY = Input.GetAxisRaw("LY");
-		Vector3 controllerInput = new Vector3(controllerX, 0f, controllerY);
-		Vector3 combined = keyboardInput + controllerInput;
-		if(combined.sqrMagnitude > 1f) combined = combined.normalized;
-		return combined;
-	}
-
 	float GetDesiredSpeed (StateData currentState) {
 		//TODO never return 0. always between the slowest move speed and the fastest... 
 		//with respect to crouching and sprinting.
 //		return GetHeightAppropriateSpeed();
-		return moveSpeedRegular;
-	}
-
-	float GetHeightAppropriateSpeed () {
-		float lerpFactor = (col.height - crouchHeight) / (normalHeight - crouchHeight);
-		return Mathf.Lerp(moveSpeedCrouch, moveSpeedRegular, lerpFactor);
+//		float baseSpeed = (currentState.moveInput.sprintInput ? moveSpeedSprint : moveSpeedRegular);
+		float baseSpeed = moveSpeedRegular;
+		if(currentState.moveInput.sprintInput){
+			if(!currentState.inWater && !currentState.onLadder || currentState.onGround){
+				baseSpeed = moveSpeedSprint;
+			}
+		}
+		float crouchLerpFactor = Mathf.Clamp01((col.height - crouchHeight) / (normalHeight - crouchHeight));
+		return Mathf.Lerp(moveSpeedCrouch, baseSpeed, crouchLerpFactor);
 	}
 
 	SurfacePoint GetSurfacePoint (List<ContactPoint> contactPoints) {
@@ -631,11 +669,6 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 		float biggestDot = Mathf.NegativeInfinity;	
 		for(int i=0; i<contactPoints.Count; i++){
 			ContactPoint point = contactPoints[i];
-//			float newY = point.normal.y;
-//			if((newY > biggestY) && (newY > 0f)){
-//				biggestY = newY;
-//				bestPoint = point;
-//			}
 			float newDot = Vector3.Dot(point.normal, rb.transform.up);
 			if((newDot > biggestDot) && (newDot > 0f)){
 				biggestDot = newDot;
@@ -663,6 +696,7 @@ public class PlayerMovementNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPref
 	}
 
 	//TODO maybe you are jumping in a train car or something... ? (big trigger "relative air" or something)
+	//TODO if triggerstay just check for an attached rigidbody? add their velocities (assuming it's multiple) together..
 	Vector3 GetRelativeVelocity (Vector3 totalVelocity, SurfacePoint surfacePoint) {
 		Vector3 otherVelocity;
 		if(surfacePoint == null){

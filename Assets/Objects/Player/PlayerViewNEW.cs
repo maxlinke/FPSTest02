@@ -57,11 +57,7 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 	
 	void Update () {
 		Look();
-		if(Input.GetKeyDown(KeyCode.Q)){	//TODO debug slowmo. remove if done with that stuff
-			if(Time.timeScale < 1f) Time.timeScale = 1f;
-			else Time.timeScale = 0.05f;
-		}
-		if(keyPrimaryFire.GetKeyDown()){
+		if(keyPrimaryFire.GetKeyDown() && Time.timeScale > 0f){	//TODO remove timescale
 			Cursor.lockState = CursorLockMode.Locked;
 		}
 		if(keyInteract.GetKeyDown()){

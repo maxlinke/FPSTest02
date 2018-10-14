@@ -105,7 +105,8 @@ public class PlayerMovementNEW : MonoBehaviour {
 	[SerializeField] float moveSpeedRegular = 8f;
 	[SerializeField] float moveSpeedCrouch = 4f;
 	[SerializeField] float moveSpeedSprint = 12f;
-	[SerializeField] float moveAcceleration = 256f;
+	[SerializeField] float moveMaxAcceleration = 128f;
+	[SerializeField] float moveMinAcceleration = 8f;
 	[SerializeField] float moveJumpHeight = 1.5f;
 	[SerializeField] float moveMaxSlopeAngle = 55f;
 //	[SerializeField] float moveMaxStepOffset = 0.3f;
@@ -121,10 +122,12 @@ public class PlayerMovementNEW : MonoBehaviour {
 	[Header("Other parameters")]
 	[SerializeField] float crouchHeight = 0.9f;
 	[SerializeField] float normalHeight = 1.9f;
+	[SerializeField] float crouchTime = 0.15f;
+	[SerializeField] float uncrouchTime = 0.15f;
 	[SerializeField] float eyeOffsetFromTop = 0.1f;
 	[SerializeField] float normalGravity = 29.43f;
 	[SerializeField] float normalFriction = 0.5f;
-	[SerializeField] float waterTriggerOffsetFromEyes = 0.2f;
+	[SerializeField] float waterOffsetFromEyesToSwim = 0.2f;
 
 	GameObject head;
 	CapsuleCollider col;
@@ -170,6 +173,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		StateData currentState;
 		List<ContactPoint> wallPoints;
 		ManageCollisions(contactPoints, moveInput, out currentState, out wallPoints);
+		ManageHeight(currentState);
 		MovementType movementType = GetMovementType(currentState);
 		Vector3 acceleration, gravity;
 		float friction;
@@ -235,7 +239,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	void OnTriggerStay (Collider otherCollider) {
 		WaterBody waterBody = otherCollider.gameObject.GetComponent<WaterBody>();
 		if(waterBody != null){
-			if(head.transform.position.y - waterTriggerOffsetFromEyes < waterBody.waterLevel){		//TODO independent of head.transform.y, rather something gravity based i guess?
+			if(head.transform.position.y - waterOffsetFromEyesToSwim < waterBody.waterLevel){		//TODO independent of head.transform.y, rather something gravity based i guess?
 				canSwim = true;
 			}
 		}
@@ -286,34 +290,12 @@ public class PlayerMovementNEW : MonoBehaviour {
 		for(int i=0; i<contactPoints.Count; i++){
 			ContactPoint point = contactPoints[i];
 			Vector3 delta = point.point - rb.transform.position;
-			float pointOffset = (delta - Horizontalized(delta)).magnitude;
 			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
 			if(pointAngle > moveMaxSlopeAngle){
 				wallPoints.Add(point);
 			}
 		}
 	}
-
-//	void DetermineWallAndStepPoints (List<ContactPoint> contactPoints, SurfacePoint surfacePoint, out List<ContactPoint> wallPoints, out List<ContactPoint> stepPoints) {
-//		wallPoints = new List<ContactPoint>();
-//		stepPoints = new List<ContactPoint>();
-//		for(int i=0; i<contactPoints.Count; i++){
-//			ContactPoint point = contactPoints[i];
-//			Vector3 delta = point.point - rb.transform.position;
-//			float pointOffset = (delta - Horizontalized(delta)).magnitude;
-//			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
-//			if(pointAngle > moveMaxSlopeAngle){
-//				wallPoints.Add(point);
-//			}
-//			if(pointOffset > 0f && pointOffset <= moveMaxStepOffset){
-//				if(surfacePoint == null){
-//					stepPoints.Add(point);
-//				}else if(!surfacePoint.originalContactPoint.Equals(point)){	//i don't have to worry about the original contact point being null here
-//					stepPoints.Add(point);
-//				}
-//			}
-//		}
-//	}
 
 	StateData GetStateData (SurfacePoint surfacePoint, MoveInput moveInput, List<ContactPoint> wallPoints, StateData lastState) {
 		StateData currentState = new StateData();
@@ -334,52 +316,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 		currentState.inWater = canSwim;
 		return currentState;
 	}
-
-//	void StepUpSteps (ref StateData currentState, StateData lastState, List<ContactPoint> stepPoints) {
-//		if(!currentState.onGround) return;
-//		if(!currentState.velocityComesFromMove) return;
-//		if(currentState.moveInput.directionalInput.magnitude > 0.5f){	//TODO again with the weird condition for "gotInput" but it works..
-//			SurfacePoint surfacePoint = currentState.surfacePoint;
-//			for(int i=0; i<stepPoints.Count; i++){
-//				ContactPoint point = stepPoints[i];
-//				Vector3 delta = point.point - surfacePoint.point;
-//				float deltaHeight = (delta - Horizontalized(delta)).magnitude;
-//				bool pointIsAbove = deltaHeight > 0.01f;	//TODO hardcoded values, yum...
-//				bool colliderStatic = ColliderIsStatic(point.otherCollider);
-//				Vector3 flattenedNormal = Horizontalized(point.normal).normalized;
-//				Vector3 flattenedVelocity = Horizontalized(currentState.incomingOwnVelocity).normalized;
-//				float directionDot = Vector3.Dot(flattenedNormal, flattenedVelocity);
-//				if(pointIsAbove && colliderStatic && (directionDot < -0.5f)){
-//					Vector3 surfPointToStepPoint = point.point - surfacePoint.point;
-//					Vector3 projectedVector = Vector3.ProjectOnPlane(surfPointToStepPoint, surfacePoint.normal);
-//					Vector3 projectedPoint = surfacePoint.point + projectedVector;
-//					float distance = Vector3.Distance(projectedPoint, point.point);
-//					if(distance > 0.05f){	//if the point is at least 5cm out of the current move plane (make sure it's not the top of a ramp or something)
-//						Vector3 start = point.point + (point.normal * col.radius) + (rb.transform.up * 0.01f);
-//						Vector3 dir = -point.normal;
-//						float dist = col.radius + 0.1f;
-//						RaycastHit hit;
-//						Debug.DrawRay(start, dir.normalized * dist, Color.cyan, 10f);
-//						if(Physics.Raycast(start, dir, out hit, dist, collisionLayerMaskForRaycasting)){
-//							float angleDifference = Vector3.Angle(point.normal, hit.normal);
-//							if(angleDifference > 5f){
-//								//TODO the following is nearly identical with ground sticking. maybe put it in an extra method
-//								Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) - (rb.transform.up * col.radius);
-//								//debug
-//								Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
-//								Debug.LogError("STEPPING");
-//								rb.MovePosition(properPosition);
-//								rb.velocity = lastState.incomingVelocity - (hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime);
-//								//overwrite state data with new info
-//								SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
-//								currentState = GetStateData(newSurfacePoint, currentState.moveInput, new List<ContactPoint>(), lastState);
-//							}
-//						}
-//					}
-//				}
-//			}
-//		}
-//	}
 
 	void StickToGroundIfNecessary (ref StateData currentState, StateData lastState, out bool overwroteStateData) {
 		overwroteStateData = false;
@@ -444,7 +380,38 @@ public class PlayerMovementNEW : MonoBehaviour {
 		}else{
 			return MovementType.AIRBORNE;
 		}
+	}
 
+	void ManageHeight (StateData currentState) {
+		bool crouch = false;
+		bool uncrouch = false;
+		if(currentState.moveInput.crouchInput){
+			if(col.height > crouchHeight) crouch = true;
+		}else{
+			if(col.height < normalHeight){
+				if(CanUncrouch()) uncrouch = true;
+				else crouch = true;
+			}
+		}
+		if(crouch){
+			float delta = ((crouchHeight - normalHeight) / crouchTime) * Time.fixedDeltaTime;
+			ChangeColliderHeight(delta, currentState);
+		}else if(uncrouch){
+			float delta = ((normalHeight - crouchHeight) / uncrouchTime) * Time.fixedDeltaTime;
+			ChangeColliderHeight(delta, currentState);
+		}
+	}
+
+	void ChangeColliderHeight (float delta, StateData currentState) {
+		float newHeight = Mathf.Clamp(col.height + delta, crouchHeight, normalHeight);
+		Vector3 newCenter = new Vector3(0f, newHeight / 2f, 0f);
+		Vector3 newHeadPos = new Vector3(0f, newHeight - eyeOffsetFromTop, 0f);
+		col.height = newHeight;
+		col.center = newCenter;
+		head.transform.localPosition = newHeadPos;
+		if(!currentState.onGround){
+			rb.transform.position += (rb.transform.up * delta * -1f);
+		}
 	}
 
 	//actual movement
@@ -458,7 +425,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		float desiredSpeed = GetDesiredSpeed(currentState);
 		if(currentState.onValidGround){
 			Vector3 desiredVector = projectedInput * desiredSpeed;
-			Vector3 tempAccel = projectedInput * moveAcceleration;
+			Vector3 tempAccel = projectedInput * moveMaxAcceleration;
 			float maxAccel = tempAccel.magnitude;
 			if(!lastState.onGround){	//if just landed
 				currentState.velocityComesFromMove = (currentSpeed <= desiredSpeed);
@@ -466,7 +433,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 			if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
 				desiredVector = projectedInput.normalized * currentSpeed;
 				if((currentSpeed <= desiredSpeed) && currentState.velocityComesFromMove){	//case : deceleration
-					maxAccel = moveAcceleration;
+					maxAccel = moveMaxAcceleration;
 				}
 				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
 				Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
@@ -501,13 +468,13 @@ public class PlayerMovementNEW : MonoBehaviour {
 			Vector3 downward = Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal);
 			Vector3 downwardVelocity = Vector3.Project(currentVelocity, downward);
 			Vector3 lateralVelocity = currentVelocity - downwardVelocity;
-			Vector3 tempAccel = projectedInput * moveAcceleration;
+			Vector3 tempAccel = projectedInput * moveMaxAcceleration;
 
 			Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
 			Vector3 lateralTempVelocity = tempVelocity - downwardVelocity;
 			if(lateralTempVelocity.sqrMagnitude > (desiredSpeed * desiredSpeed)){
 				Vector3 desiredVector = tempVelocity.normalized * lateralVelocity.magnitude;
-				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, moveAcceleration);
+				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, moveMaxAcceleration);
 			}
 			if(Vector3.Dot(tempAccel, downward) < 0f){
 				float x = Vector3.Dot(tempAccel, downward) / Vector3.Dot(downward, downward);
@@ -562,7 +529,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		}
 		float desiredSpeed = GetDesiredSpeed(currentState);
 		Vector3 desiredVector = inputVector * desiredSpeed;
-		Vector3 tempAccel = inputVector * moveAcceleration;
+		Vector3 tempAccel = inputVector * moveMaxAcceleration;
 		float maxAccel = tempAccel.magnitude;	//no more acceleration than this!
 		if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
 			desiredVector = inputVector.normalized * currentVelocity.magnitude;
@@ -593,7 +560,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		float desiredSpeed = GetDesiredSpeed(currentState);
 		Vector3 desiredVector = projectedInput * desiredSpeed;
 //		float maxAccel = inputVector.magnitude * moveAcceleration;
-		float maxAccel = moveAcceleration;
+		float maxAccel = moveMaxAcceleration;
 		Vector3 tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
 		if(currentState.moveInput.jumpInput && (Vector3.Dot(head.transform.forward, ladderNormal) > 0f)){
 			Vector3 jumpDirection = (ladderNormal + head.transform.forward).normalized;
@@ -636,11 +603,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 
 	Vector3 ClampedDeltaVAcceleration (Vector3 currentVelocity, Vector3 targetVelocity, float maxAccel) {
 		Vector3 deltaV = targetVelocity - currentVelocity;
-//		Vector3 tempAccel = deltaV.normalized * maxAccel;
-//		if((tempAccel * Time.fixedDeltaTime).sqrMagnitude > deltaV.sqrMagnitude){
-//			tempAccel = deltaV / Time.fixedDeltaTime;
-//		}
-//		return tempAccel;
 		Vector3 deltaVAccel = deltaV / Time.fixedDeltaTime;
 		if(deltaVAccel.sqrMagnitude > (maxAccel * maxAccel)){
 			return deltaV.normalized * maxAccel;
@@ -650,10 +612,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	}
 
 	float GetDesiredSpeed (StateData currentState) {
-		//TODO never return 0. always between the slowest move speed and the fastest... 
-		//with respect to crouching and sprinting.
-//		return GetHeightAppropriateSpeed();
-//		float baseSpeed = (currentState.moveInput.sprintInput ? moveSpeedSprint : moveSpeedRegular);
+		//TODO never return 0. always between the slowest move speed and the fastest with respect to crouching and sprinting.
 		float baseSpeed = moveSpeedRegular;
 		if(currentState.moveInput.sprintInput){
 			if(!currentState.inWater && !currentState.onLadder || currentState.onGround){
@@ -756,35 +715,86 @@ public class PlayerMovementNEW : MonoBehaviour {
 	}
 
 	bool CanUncrouch () {
-		if(!isCrouching){
+		Vector3 rayStart = transform.position + (rb.transform.up * (col.height - col.radius));
+		Vector3 rayDir = rb.transform.up;
+		float rayLength = col.radius + (normalHeight - col.height);
+//		return !Physics.Raycast(rayStart, rayDir, rayLength, collisionLayerMaskForRaycasting);
+		RaycastHit hit;
+		if(Physics.Raycast(rayStart, rayDir, out hit, rayLength, collisionLayerMaskForRaycasting)){
+			Debug.Log("can't uncrouch, hit \"" + hit.collider + "\"");
 			return false;
 		}else{
-			Vector3 rayStart = transform.position + (rb.transform.up * col.height / 2f);
-			Vector3 rayDir = rb.transform.up;
-			float rayLength = normalHeight - (col.height / 2f);
-			int completePlayerCollisionMask = LayerMaskUtils.CreateMask("Player");
-			int onlyWaterMask = LayerMask.GetMask("Water");
-			int crouchcastLayermask = completePlayerCollisionMask & (~onlyWaterMask);
-			string logString = "";
-			logString += LayerMaskUtils.MaskToBinaryString(completePlayerCollisionMask) + "\n";
-			logString += LayerMaskUtils.MaskToBinaryString(onlyWaterMask) + "\n";
-			logString += LayerMaskUtils.MaskToBinaryString(crouchcastLayermask);
-			Debug.LogWarning(logString);
-			RaycastHit hit;
-			if(Physics.Raycast(rayStart, rayDir, out hit, rayLength, crouchcastLayermask)){	
-				//TODO the raycast currently also hits water
-				//hitting water is no reason to not uncrouch
-				//hitting water is also no way to say it's okay to uncrouch
-				//i could either make a new layer to csat
-				//or i could recast the ray
-				//OOOOOOOOORRRRRRRRRR
-				//i just AND (&) out the water layer from the layermask
-				//TODO layermaskutils for the cast-masks. no need to waste precious collision layers :P
-				return false;
-			}else{
-				return true;
-			}
+			return true;
 		}
 	}
+
+	//deprecated / not (entirely) functional
+
+	//	void DetermineWallAndStepPoints (List<ContactPoint> contactPoints, SurfacePoint surfacePoint, out List<ContactPoint> wallPoints, out List<ContactPoint> stepPoints) {
+	//		wallPoints = new List<ContactPoint>();
+	//		stepPoints = new List<ContactPoint>();
+	//		for(int i=0; i<contactPoints.Count; i++){
+	//			ContactPoint point = contactPoints[i];
+	//			Vector3 delta = point.point - rb.transform.position;
+	//			float pointOffset = (delta - Horizontalized(delta)).magnitude;
+	//			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
+	//			if(pointAngle > moveMaxSlopeAngle){
+	//				wallPoints.Add(point);
+	//			}
+	//			if(pointOffset > 0f && pointOffset <= moveMaxStepOffset){
+	//				if(surfacePoint == null){
+	//					stepPoints.Add(point);
+	//				}else if(!surfacePoint.originalContactPoint.Equals(point)){	//i don't have to worry about the original contact point being null here
+	//					stepPoints.Add(point);
+	//				}
+	//			}
+	//		}
+	//	}
+
+	//	void StepUpSteps (ref StateData currentState, StateData lastState, List<ContactPoint> stepPoints) {
+	//		if(!currentState.onGround) return;
+	//		if(!currentState.velocityComesFromMove) return;
+	//		if(currentState.moveInput.directionalInput.magnitude > 0.5f){	//TODO again with the weird condition for "gotInput" but it works..
+	//			SurfacePoint surfacePoint = currentState.surfacePoint;
+	//			for(int i=0; i<stepPoints.Count; i++){
+	//				ContactPoint point = stepPoints[i];
+	//				Vector3 delta = point.point - surfacePoint.point;
+	//				float deltaHeight = (delta - Horizontalized(delta)).magnitude;
+	//				bool pointIsAbove = deltaHeight > 0.01f;	//TODO hardcoded values, yum...
+	//				bool colliderStatic = ColliderIsStatic(point.otherCollider);
+	//				Vector3 flattenedNormal = Horizontalized(point.normal).normalized;
+	//				Vector3 flattenedVelocity = Horizontalized(currentState.incomingOwnVelocity).normalized;
+	//				float directionDot = Vector3.Dot(flattenedNormal, flattenedVelocity);
+	//				if(pointIsAbove && colliderStatic && (directionDot < -0.5f)){
+	//					Vector3 surfPointToStepPoint = point.point - surfacePoint.point;
+	//					Vector3 projectedVector = Vector3.ProjectOnPlane(surfPointToStepPoint, surfacePoint.normal);
+	//					Vector3 projectedPoint = surfacePoint.point + projectedVector;
+	//					float distance = Vector3.Distance(projectedPoint, point.point);
+	//					if(distance > 0.05f){	//if the point is at least 5cm out of the current move plane (make sure it's not the top of a ramp or something)
+	//						Vector3 start = point.point + (point.normal * col.radius) + (rb.transform.up * 0.01f);
+	//						Vector3 dir = -point.normal;
+	//						float dist = col.radius + 0.1f;
+	//						RaycastHit hit;
+	//						Debug.DrawRay(start, dir.normalized * dist, Color.cyan, 10f);
+	//						if(Physics.Raycast(start, dir, out hit, dist, collisionLayerMaskForRaycasting)){
+	//							float angleDifference = Vector3.Angle(point.normal, hit.normal);
+	//							if(angleDifference > 5f){
+	//								//TODO the following is nearly identical with ground sticking. maybe put it in an extra method
+	//								Vector3 properPosition = hit.point + (hit.normal * (col.radius + 0.05f)) - (rb.transform.up * col.radius);
+	//								//debug
+	//								Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
+	//								Debug.LogError("STEPPING");
+	//								rb.MovePosition(properPosition);
+	//								rb.velocity = lastState.incomingVelocity - (hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime);
+	//								//overwrite state data with new info
+	//								SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
+	//								currentState = GetStateData(newSurfacePoint, currentState.moveInput, new List<ContactPoint>(), lastState);
+	//							}
+	//						}
+	//					}
+	//				}
+	//			}
+	//		}
+	//	}
 
 }

@@ -308,18 +308,24 @@ MonoBehaviour:
   moveSpeedRegular: 8
   moveSpeedCrouch: 4
   moveSpeedSprint: 12
-  moveAcceleration: 256
+  moveAcceleration: 128
   moveJumpHeight: 1.5
   moveMaxSlopeAngle: 55
-  moveMaxStepOffset: 0.3
-  moveSlideControl: 12
+  moveSlopeSlideStartAngle: 45
+  moveMinSlideControl: 0.2
+  moveSlideControlFalloffHarshness: 1
   moveAirControl: 4
+  moveAirAutoDecelSpeed: 10
+  moveAirAutoDeceleration: 5
+  moveLadderJumpSpeed: 4
+  moveLadderHorizontalFactor: 0.33
   crouchHeight: 0.9
   normalHeight: 1.9
+  crouchTime: 0.15
+  uncrouchTime: 0.15
   eyeOffsetFromTop: 0.1
   normalGravity: 29.43
-  normalStaticFriction: 0.5
-  normalDynamicFriction: 0.5
+  normalFriction: 0.5
   waterTriggerOffsetFromEyes: 0.2
 --- !u!114 &114753244968219480
 MonoBehaviour:

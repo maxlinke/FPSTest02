@@ -54,7 +54,7 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		if(Input.GetKeyDown(KeyCode.Mouse1)){
 			rb.velocity += head.transform.forward * 50f;
 		}
-		if(Input.GetKeyDown(KeyCode.Q)){	//TODO debug slowmo. remove if done with that stuff
+		if(Input.GetKeyDown(KeyCode.Q)){
 			if(Time.timeScale < 1f) Time.timeScale = 1f;
 			else Time.timeScale = 0.05f;
 		}

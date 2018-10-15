@@ -49194,29 +49194,10 @@ Prefab:
       propertyPath: guiObject
       value: 
       objectReference: {fileID: 1277057520}
-    - target: {fileID: 1116530696212276, guid: ce5fae29d56dcad47ab93d74c91735c8, type: 2}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 114405506166871214, guid: ce5fae29d56dcad47ab93d74c91735c8,
         type: 2}
-      propertyPath: moveAirControl
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 114405506166871214, guid: ce5fae29d56dcad47ab93d74c91735c8,
-        type: 2}
-      propertyPath: moveSlideControl
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 54139357734602072, guid: ce5fae29d56dcad47ab93d74c91735c8,
-        type: 2}
-      propertyPath: m_Interpolate
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 114405506166871214, guid: ce5fae29d56dcad47ab93d74c91735c8,
-        type: 2}
-      propertyPath: moveAcceleration
-      value: 256
+      propertyPath: moveMinAcceleration
+      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: ce5fae29d56dcad47ab93d74c91735c8, type: 2}

@@ -105,16 +105,15 @@ public class PlayerMovementNEW : MonoBehaviour {
 	[SerializeField] float moveSpeedRegular = 8f;
 	[SerializeField] float moveSpeedCrouch = 4f;
 	[SerializeField] float moveSpeedSprint = 12f;
-	[SerializeField] float moveMaxAcceleration = 128f;
-	[SerializeField] float moveMinAcceleration = 8f;
+
 	[SerializeField] float moveJumpHeight = 1.5f;
-	[SerializeField] float moveMaxSlopeAngle = 55f;
-//	[SerializeField] float moveMaxStepOffset = 0.3f;
+	[SerializeField] float moveAccelerationMax = 128f;
+	[SerializeField] float moveAccelerationMin = 8f;
+	[SerializeField] float moveSlopeAngleLimit = 55f;
 	[SerializeField] float moveSlopeSlideStartAngle = 45f;
-	[SerializeField] float moveMinSlideControl = 0.2f;
-	[SerializeField] float moveSlideControlFalloffHarshness = 1f;
+//	[SerializeField] float moveMaxStepOffset = 0.3f;
 	[SerializeField] float moveAirControl = 4f;
-	[SerializeField] float moveAirAutoDecelSpeed = 10f;
+	[SerializeField] float moveAirAutoDecelThreshold = 10f;
 	[SerializeField] float moveAirAutoDeceleration = 5f;
 	[SerializeField] float moveLadderJumpSpeed = 4f;
 	[SerializeField] float moveLadderHorizontalFactor = 0.33f;
@@ -218,22 +217,14 @@ public class PlayerMovementNEW : MonoBehaviour {
 		canSwim = false;	//needs to be reset as it is done in triggerstay
 	}
 
-	//collisions
+	//collisions / triggers
 
 	void OnCollisionEnter (Collision collision) {
-//		contactPoints.AddRange(collision.contacts);
 		FilterAndAddToList(collision.contacts, contactPoints);
 	}
 
 	void OnCollisionStay (Collision collision) {
-//		contactPoints.AddRange(collision.contacts);
 		FilterAndAddToList(collision.contacts, contactPoints);
-	}
-
-	//triggers
-
-	void OnTriggerEnter (Collider otherCollider) {
-		
 	}
 
 	void OnTriggerStay (Collider otherCollider) {
@@ -243,10 +234,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 				canSwim = true;
 			}
 		}
-	}
-
-	void OnTriggerExit (Collider otherCollider) {
-
 	}
 
 	//pre movement
@@ -270,7 +257,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	void FilterAndAddToList (ContactPoint[] originalCollisionContacts, List<ContactPoint> contactPoints) {
 		for(int i=0; i<originalCollisionContacts.Length; i++){
 			ContactPoint point = originalCollisionContacts[i];
-			if(point.thisCollider.Equals(col)){		//nullchecking here might not work because the other colliders might only get deleted afterwards
+			if(point.thisCollider.Equals(col)){		//nullchecking here might not work because the other colliders might only get deleted afterwards (as in removing invalid points)
 				contactPoints.Add(point);
 			}
 		}
@@ -291,7 +278,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 			ContactPoint point = contactPoints[i];
 			Vector3 delta = point.point - rb.transform.position;
 			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
-			if(pointAngle > moveMaxSlopeAngle){
+			if(pointAngle > moveSlopeAngleLimit){
 				wallPoints.Add(point);
 			}
 		}
@@ -334,7 +321,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		RaycastHit hit;
 		Debug.DrawRay(start, dir.normalized * dist, Color.magenta, 10f);
 		if(Physics.Raycast(start, dir, out hit, dist, collisionLayerMaskForRaycasting)){	
-			bool hitAngleOkay = (Vector3.Angle(hit.normal, rb.transform.up) <= moveMaxSlopeAngle);
+			bool hitAngleOkay = (Vector3.Angle(hit.normal, rb.transform.up) <= moveSlopeAngleLimit);
 			bool angleBetweenVelocityAndHitOkay = (Vector3.Angle(currentState.incomingOwnVelocity, hit.normal) < 90f);
 			bool colliderSolid = ColliderIsSolid(hit.collider);
 			if(hitAngleOkay && angleBetweenVelocityAndHitOkay && colliderSolid){
@@ -423,9 +410,12 @@ public class PlayerMovementNEW : MonoBehaviour {
 		Vector3 inputVector = rb.transform.TransformDirection(currentState.moveInput.directionalInput);
 		Vector3 projectedInput = GetSurfaceMoveVector(inputVector, surfacePoint.normal);
 		float desiredSpeed = GetDesiredSpeed(currentState);
+		float frictionLerpFactor = GetSurfaceFrictionLerpFactor(currentState);
+		float frictionAppropriateAccel = Mathf.Lerp(moveAccelerationMin, moveAccelerationMax, (frictionLerpFactor * frictionLerpFactor));
+//		float velocityLerpFactor = 
 		if(currentState.onValidGround){
 			Vector3 desiredVector = projectedInput * desiredSpeed;
-			Vector3 tempAccel = projectedInput * moveMaxAcceleration;
+			Vector3 tempAccel = projectedInput * frictionAppropriateAccel;
 			float maxAccel = tempAccel.magnitude;
 			if(!lastState.onGround){	//if just landed
 				currentState.velocityComesFromMove = (currentSpeed <= desiredSpeed);
@@ -433,7 +423,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 			if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
 				desiredVector = projectedInput.normalized * currentSpeed;
 				if((currentSpeed <= desiredSpeed) && currentState.velocityComesFromMove){	//case : deceleration
-					maxAccel = moveMaxAcceleration;
+					maxAccel = frictionAppropriateAccel;
 				}
 				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
 				Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
@@ -453,7 +443,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 				currentState.jumped = true;
 			}
 
-			float slopeLerpFactor = Mathf.Clamp01((surfacePoint.angle - moveSlopeSlideStartAngle) / (moveMaxSlopeAngle - moveSlopeSlideStartAngle));
+			float slopeLerpFactor = Mathf.Clamp01((surfacePoint.angle - moveSlopeSlideStartAngle) / (moveSlopeAngleLimit - moveSlopeSlideStartAngle));
 			Vector3 tempGravity = Vector3.Lerp(-surfacePoint.normal, -rb.transform.up, slopeLerpFactor) * Physics.gravity.magnitude;
 			if(!currentState.onSolidGround){
 				tempGravity = Physics.gravity;
@@ -461,26 +451,30 @@ public class PlayerMovementNEW : MonoBehaviour {
 //			outputAcceleration = tempAccel + ((1f - slopeLerpFactor) * Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal));
 			outputAcceleration = tempAccel;
 			outputGravity = tempGravity;
-			outputFriction = (1f - slopeLerpFactor) * normalFriction;
+			outputFriction = (1f - slopeLerpFactor) * frictionLerpFactor * normalFriction;
+			if(!currentState.velocityComesFromMove){
+				outputFriction *= GetCrouchLerpFactor();
+			}
 		}
 		else{
 			//TODO allow steering and stuff but it cannot affect the "downward" motion
-			Vector3 downward = Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal);
+			Vector3 downward = Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal).normalized;
 			Vector3 downwardVelocity = Vector3.Project(currentVelocity, downward);
 			Vector3 lateralVelocity = currentVelocity - downwardVelocity;
-			Vector3 tempAccel = projectedInput * moveMaxAcceleration;
+			Vector3 tempAccel = projectedInput * frictionAppropriateAccel;
 
 			Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
 			Vector3 lateralTempVelocity = tempVelocity - downwardVelocity;
 			if(lateralTempVelocity.sqrMagnitude > (desiredSpeed * desiredSpeed)){
 				Vector3 desiredVector = tempVelocity.normalized * lateralVelocity.magnitude;
-				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, moveMaxAcceleration);
+				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, moveAccelerationMax);
 			}
-			if(Vector3.Dot(tempAccel, downward) < 0f){
-				float x = Vector3.Dot(tempAccel, downward) / Vector3.Dot(downward, downward);
-				tempAccel -= x * downward;
-			}
-			tempAccel = Vector3.ProjectOnPlane(tempAccel, surfacePoint.normal);
+//			if(Vector3.Dot(tempAccel, downward) < 0f){
+//				float x = Vector3.Dot(tempAccel, downward) / Vector3.Dot(downward, downward);
+//				tempAccel -= x * downward;
+//			}
+//			tempAccel = Vector3.ProjectOnPlane(tempAccel, surfacePoint.normal);
+			tempAccel -= Vector3.Project(tempAccel, downward);
 			currentState.velocityComesFromMove = false;
 			outputAcceleration = tempAccel;
 			outputGravity = Physics.gravity;
@@ -506,7 +500,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 			}
 			outputAcceleration = tempAccel;
 		}else{
-			if(currentGroundSpeed < moveAirAutoDecelSpeed){
+			if(currentGroundSpeed < moveAirAutoDecelThreshold){
 //				currentState.velocityComesFromMove = true;		//velocity from move doesn't really matter in the air..
 				outputAcceleration = ClampedDeltaVAcceleration(Horizontalized(currentVelocity), desiredVector, moveAirAutoDeceleration);
 			}else{
@@ -529,7 +523,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		}
 		float desiredSpeed = GetDesiredSpeed(currentState);
 		Vector3 desiredVector = inputVector * desiredSpeed;
-		Vector3 tempAccel = inputVector * moveMaxAcceleration;
+		Vector3 tempAccel = inputVector * moveAccelerationMax;
 		float maxAccel = tempAccel.magnitude;	//no more acceleration than this!
 		if(currentVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
 			desiredVector = inputVector.normalized * currentVelocity.magnitude;
@@ -560,7 +554,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		float desiredSpeed = GetDesiredSpeed(currentState);
 		Vector3 desiredVector = projectedInput * desiredSpeed;
 //		float maxAccel = inputVector.magnitude * moveAcceleration;
-		float maxAccel = moveMaxAcceleration;
+		float maxAccel = moveAccelerationMax;
 		Vector3 tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
 		if(currentState.moveInput.jumpInput && (Vector3.Dot(head.transform.forward, ladderNormal) > 0f)){
 			Vector3 jumpDirection = (ladderNormal + head.transform.forward).normalized;
@@ -619,8 +613,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 				baseSpeed = moveSpeedSprint;
 			}
 		}
-		float crouchLerpFactor = Mathf.Clamp01((col.height - crouchHeight) / (normalHeight - crouchHeight));
-		return Mathf.Lerp(moveSpeedCrouch, baseSpeed, crouchLerpFactor);
+		return Mathf.Lerp(moveSpeedCrouch, baseSpeed, GetCrouchLerpFactor());
 	}
 
 	SurfacePoint GetSurfacePoint (List<ContactPoint> contactPoints) {
@@ -690,7 +683,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	}
 
 	bool GetIsOnValidGround (SurfacePoint surfacePoint) {
-		return (surfacePoint.angle <= moveMaxSlopeAngle);
+		return (surfacePoint.angle <= moveSlopeAngleLimit);
 	}
 
 	bool GetIsOnSolidGround (SurfacePoint surfacePoint) {
@@ -726,6 +719,18 @@ public class PlayerMovementNEW : MonoBehaviour {
 		}else{
 			return true;
 		}
+	}
+
+	//0 = no friction, 1 = normal friction
+	float GetSurfaceFrictionLerpFactor (StateData currentState) {
+		PhysicMaterial otherPM = currentState.surfacePoint.otherCollider.material;
+		float averageSurfaceFriction = (otherPM.staticFriction + otherPM.dynamicFriction) / 2f;
+		return Mathf.Clamp01(averageSurfaceFriction / 0.6f);
+	}
+
+	//0 = crouched, 1 = uncrouched
+	float GetCrouchLerpFactor () {
+		return Mathf.Clamp01((col.height - crouchHeight) / (normalHeight - crouchHeight));
 	}
 
 	//deprecated / not (entirely) functional

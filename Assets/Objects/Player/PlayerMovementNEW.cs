@@ -216,11 +216,16 @@ public class PlayerMovementNEW : MonoBehaviour {
 //		Debug.DrawLine(DEBUG_lastPos, rb.transform.position, (currentState.onGround ? Color.green : Color.red), 10f);
 //		Debug.DrawRay(rb.transform.position, Vector3.up * 0.1f, Color.white, 10f);
 //		DEBUG_lastPos = rb.transform.position;
-		string output = currentState.velocityComesFromMove.ToString() + "\n";
-		output += "civ  " + currentState.incomingVelocity.magnitude + "\n";
-		output += "ciov  " + currentState.incomingOwnVelocity.magnitude + "\n";
-		output += "lov  " + lastState.outgoingVelocity.magnitude + "\n";
-		output += "loov  " + lastState.outgoingOwnVelocity.magnitude + "\n";
+		string output = "vFromMove? : " + currentState.velocityComesFromMove.ToString() + "\n";
+		output += movementType.ToString() + "\n";
+		if(currentState.onGround){
+			output += currentState.surfacePoint.angle + "°\n";
+			output += "valid? : " + currentState.onValidGround;
+		}
+//		output += "civ  " + currentState.incomingVelocity.magnitude + "\n";
+//		output += "ciov  " + currentState.incomingOwnVelocity.magnitude + "\n";
+//		output += "lov  " + lastState.outgoingVelocity.magnitude + "\n";
+//		output += "loov  " + lastState.outgoingOwnVelocity.magnitude + "\n";
 		gui.SetInteractDisplayMessage(output);
 
 		//save and/or reset fields
@@ -320,11 +325,12 @@ public class PlayerMovementNEW : MonoBehaviour {
 		overwroteStateData = false;
 		if(currentState.onGround) return;
 		if(currentState.onLadder) return;
-		if(currentState.inWater) return;	//maybe simply check if movementtype (last one) was grounded?
+		if(currentState.inWater) return;
 		if(lastState.jumped) return;
 		if(!lastState.onGround) return;
 		if(!lastState.onSolidGround) return;
 		if(!currentState.velocityComesFromMove) return;
+//		if(currentState.incomingOwnVelocity.magnitude > moveSpeedRegular) return;	//TODO this one's new, might not be necessary
 		Vector3 start = rb.transform.position + (rb.transform.up * col.radius);
 //		Vector3 dir = -lastState.surfacePoint.normal;	//this works more often
 //		Vector3 dir = lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//this is smoother... less jerky...

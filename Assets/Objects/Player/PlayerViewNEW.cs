@@ -2,7 +2,21 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeybindObserver, IPlayerPrefSettingsObserver {
+public class PlayerViewNEW : MonoBehaviour {
+
+	public struct ViewInput {
+
+		public readonly Vector2 lookInput;
+		public readonly bool interactInput;
+		public readonly bool fireInput;
+
+		public ViewInput (Vector2 lookInput, bool interactInput, bool fireInput) {
+			this.lookInput = lookInput;
+			this.interactInput = interactInput;
+			this.fireInput = fireInput;
+		}
+
+	}
 
 	[SerializeField] float interactRange = 3f;
 	[SerializeField] float interactTestsPerSecond = 10f;
@@ -16,22 +30,15 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 	Camera cam;
 	IGUI gui;
 
-	DoubleKey keyInteract;
-	DoubleKey keyPrimaryFire;
-	DoubleKey keyToggleGUI;
-
-	float mouseSensitivity;
-	float mouseInvert;
-
-	float controllerSensitivity;
-	float controllerInvert;
-
 	float tilt;
 	float pan;
+	float bodyPan;
 
 	int layermaskInteract;
 	float interactTestInterval;
 	float interactTestTimer;
+
+//	int collisionLayerMaskForProps;
 
 	Rigidbody grabbedRB;
 	CollisionDetectionMode grabbedRBCollisionDetectionMode;
@@ -45,9 +52,6 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 		this.head = head;
 		this.cam = cam;
 		this.gui = gui;
-		AddSelfToPlayerPrefObserverList();
-		LoadKeys();
-		LoadValues();
 		Cursor.lockState = CursorLockMode.Locked;
 		layermaskInteract = LayerMaskUtils.CreateMask("InteractCast");
 		interactTestInterval = 1f / interactTestsPerSecond;
@@ -55,12 +59,12 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 
 	}
 	
-	void Update () {
-		Look();
-		if(keyPrimaryFire.GetKeyDown() && Time.timeScale > 0f){	//TODO remove timescale
+	public void ExecuteUpdate (ViewInput viewInput) {
+		Look(viewInput.lookInput);
+		if(viewInput.fireInput){
 			Cursor.lockState = CursorLockMode.Locked;
 		}
-		if(keyInteract.GetKeyDown()){
+		if(viewInput.interactInput){
 			if(grabbedRB != null){
 				//TODO set flag to drop/throw grabbed object
 			}else{
@@ -73,71 +77,30 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 		}
 	}
 
-	void FixedUpdate () {
+	public void ExecuteFixedUpdate () {
 		MatchRBRotationToHead();
 		//TODO check for wish to drop grabbed object and then drop/throw it
 	}
 
-	//interfaces
-
-	public void AddSelfToPlayerPrefObserverList () {
-		PlayerPrefManager.AddObserver(this);
-	}
-
-	public void NotifyKeybindsChanged () {
-		LoadKeys();
-	}
-
-	public void NotifyPlayerSettingsChanged () {
-		LoadValues();
-	}
-
-	//regular methods
-
-	void LoadValues () {
-		mouseSensitivity = PlayerPrefManager.GetFloat("mouse_sensitivity");
-		mouseInvert = ((PlayerPrefManager.GetInt("mouse_invert") == 0) ? +1 : -1);
-		//TODO controller options!
-		//TODO dynamically created bindings menu (enums for different categories etc...) (joystick buttons can be assigned normally but what about the "axes" at the back?)
-		Debug.LogWarning("TODO : Controller options!");
-		Debug.LogWarning("TODO : Dynamically created bindings menu!");
-		controllerSensitivity = mouseSensitivity / 2f;
-		controllerInvert = mouseInvert;
-		cam.fieldOfView = PlayerPrefManager.GetFloat("camera_fov");
-	}
-
-	void LoadKeys () {
-		keyInteract = DoubleKey.FromPlayerPrefs("key_interact");
-		keyPrimaryFire = DoubleKey.FromPlayerPrefs("key_primary_fire");
-		keyToggleGUI = DoubleKey.FromPlayerPrefs("key_toggleGUI");
-	}
-
-	void Look () {
-		Vector2 look = GetLookInput();
-		pan = Mathf.Repeat(pan + look.x, 360);
-		tilt = Mathf.Clamp(tilt + look.y, -90, 90);
-		float rPan = Mathf.Deg2Rad * pan;
-		float rTilt = Mathf.Deg2Rad * tilt;
-		float sinPan = Mathf.Sin(rPan);
-		float cosPan = Mathf.Cos(rPan);
-		float sinTilt = Mathf.Sin(rTilt);
-		float cosTilt = Mathf.Cos(rTilt);
-		Vector3 fwdHorizontal = new Vector3(sinPan, 0f, cosPan) * cosTilt;
-		Vector3 fwdVertical = new Vector3(0f, sinTilt, 0f);
-		Vector3 forward = fwdHorizontal + fwdVertical;
-		Vector3 upHorizontal = new Vector3(sinPan, 0f, cosPan) * sinTilt * -1f;
-		Vector3 upVertical = new Vector3(0f, cosTilt, 0f);
-		Vector3 up = upHorizontal + upVertical;
-		head.transform.rotation = Quaternion.LookRotation(forward, up);
+	void Look (Vector2 lookInput) {
+		pan = Mathf.Repeat(pan + lookInput.x, 360);
+		tilt = Mathf.Clamp(tilt + lookInput.y, -90, 90);
+		float deltaPan = Mathf.Repeat(pan - bodyPan, 360);
+		head.transform.localRotation = Quaternion.identity;
+		head.transform.Rotate(Vector3.up, deltaPan);
+		head.transform.Rotate(Vector3.left, tilt);
 	}
 
 	void MatchRBRotationToHead () {
 		Vector3 headFwd = head.transform.forward;
 		Vector3 headUp = head.transform.up;
-		float rPan = Mathf.Deg2Rad * pan;
-		Vector3 bodyFwd = new Vector3(Mathf.Sin(rPan), 0f, Mathf.Cos(rPan));
-		rb.transform.rotation = Quaternion.LookRotation(bodyFwd, Vector3.up);
+		float lerpFactor = tilt / 90f;
+		float absLerpFactor = Mathf.Abs(lerpFactor);
+		Vector3 bodyFwd = ((1f - absLerpFactor) * headFwd) - (lerpFactor * headUp);		//it cycles around in a weird way. maybe i can find a way to calculate the vector directly
+		bodyFwd = Vector3.ProjectOnPlane(bodyFwd, rb.transform.up);
+		rb.transform.rotation = Quaternion.LookRotation(bodyFwd, rb.transform.up);
 		head.transform.rotation = Quaternion.LookRotation(headFwd, headUp);
+		bodyPan = pan;
 	}
 
 	void TryToInteract (out bool successful) {
@@ -178,17 +141,6 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 
 	//utility
 
-	Vector2 GetLookInput () {
-		float mouseX = Input.GetAxisRaw("Mouse X");
-		float mouseY = Input.GetAxisRaw("Mouse Y") * mouseInvert;
-		Vector2 mouseInput = new Vector2(mouseX, mouseY);
-		float controllerX = Input.GetAxisRaw("RX");
-		float controllerY = Input.GetAxisRaw("RY") * mouseInvert;
-		Vector2 controllerInput = new Vector2(controllerX, controllerY);
-		Vector2 combined = mouseInput + controllerInput;
-		return (combined * mouseSensitivity * Time.timeScale);
-	}
-
 	void InteractCast (out IInteractable interactableObject, out Rigidbody grabbableRigidbody) {
 		interactableObject = null;
 		grabbableRigidbody = null;
@@ -209,5 +161,24 @@ public class PlayerViewNEW : MonoBehaviour, IPlayerPrefObserver, IPlayerPrefKeyb
 			return false;
 		}
 	}
+
+	//deprecated but i keep it around because it's fun to compare it to the new one :)
+//	void Look (Vector2 lookInput) {
+//		pan = Mathf.Repeat(pan + lookInput.x, 360);
+//		tilt = Mathf.Clamp(tilt + lookInput.y, -90, 90);
+//		float rPan = Mathf.Deg2Rad * pan;
+//		float rTilt = Mathf.Deg2Rad * tilt;
+//		float sinPan = Mathf.Sin(rPan);
+//		float cosPan = Mathf.Cos(rPan);
+//		float sinTilt = Mathf.Sin(rTilt);
+//		float cosTilt = Mathf.Cos(rTilt);
+//		Vector3 fwdHorizontal = new Vector3(sinPan, 0f, cosPan) * cosTilt;
+//		Vector3 fwdVertical = new Vector3(0f, sinTilt, 0f);
+//		Vector3 forward = fwdHorizontal + fwdVertical;
+//		Vector3 upHorizontal = new Vector3(sinPan, 0f, cosPan) * sinTilt * -1f;
+//		Vector3 upVertical = new Vector3(0f, cosTilt, 0f);
+//		Vector3 up = upHorizontal + upVertical;
+//		head.transform.rotation = Quaternion.LookRotation(forward, up);	
+//	}
 
 }

@@ -202,15 +202,27 @@ public class PlayerMovementNEW : MonoBehaviour {
 		col.material.staticFriction = friction;
 		col.material.dynamicFriction = friction;
 
-		Debug.DrawLine(DEBUG_lastPos, rb.transform.position, (currentState.onGround ? Color.green : Color.red), 10f);
-		Debug.DrawRay(rb.transform.position, Vector3.up * 0.1f, Color.white, 10f);
-		DEBUG_lastPos = rb.transform.position;
+		//do it after the fact to not factor into own velocity and stuff
+		if(movementType == MovementType.GROUNDED && currentState.onValidGround){
+			float slopeLerpFactor = GetSlopeLerpFactor(currentState);	//reminder : 0 = walkable, 1 = not walkable
+			float inputLerpFactor = currentState.moveInput.directionalInput.magnitude;	//if input, then no sliding
+			float resultLerpFactor = slopeLerpFactor * (1f - inputLerpFactor);
+			resultLerpFactor = Mathf.Pow(resultLerpFactor, 0.333f);
+			Vector3 slopeAccel = Vector3.ProjectOnPlane(Physics.gravity, currentState.surfacePoint.normal) * resultLerpFactor;
+			rb.velocity += slopeAccel * Time.fixedDeltaTime;
+		}
+
+//		//debug
+//		Debug.DrawLine(DEBUG_lastPos, rb.transform.position, (currentState.onGround ? Color.green : Color.red), 10f);
+//		Debug.DrawRay(rb.transform.position, Vector3.up * 0.1f, Color.white, 10f);
+//		DEBUG_lastPos = rb.transform.position;
 		string output = currentState.velocityComesFromMove.ToString() + "\n";
 		output += "civ  " + currentState.incomingVelocity.magnitude + "\n";
 		output += "ciov  " + currentState.incomingOwnVelocity.magnitude + "\n";
 		output += "lov  " + lastState.outgoingVelocity.magnitude + "\n";
 		output += "loov  " + lastState.outgoingOwnVelocity.magnitude + "\n";
 		gui.SetInteractDisplayMessage(output);
+
 		//save and/or reset fields
 		lastState = currentState;
 		contactPoints.Clear();
@@ -412,7 +424,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 		float desiredSpeed = GetDesiredSpeed(currentState);
 		float frictionLerpFactor = GetSurfaceFrictionLerpFactor(currentState);
 		float frictionAppropriateAccel = Mathf.Lerp(moveAccelerationMin, moveAccelerationMax, (frictionLerpFactor * frictionLerpFactor));
-//		float velocityLerpFactor = 
 		if(currentState.onValidGround){
 			Vector3 desiredVector = projectedInput * desiredSpeed;
 			Vector3 tempAccel = projectedInput * frictionAppropriateAccel;
@@ -443,12 +454,24 @@ public class PlayerMovementNEW : MonoBehaviour {
 				currentState.jumped = true;
 			}
 
-			float slopeLerpFactor = Mathf.Clamp01((surfacePoint.angle - moveSlopeSlideStartAngle) / (moveSlopeAngleLimit - moveSlopeSlideStartAngle));
-			Vector3 tempGravity = Vector3.Lerp(-surfacePoint.normal, -rb.transform.up, slopeLerpFactor) * Physics.gravity.magnitude;
-			if(!currentState.onSolidGround){
+			float slopeLerpFactor = GetSlopeLerpFactor(currentState);	//reminder : 0 = walkable, 1 = not walkable
+			Vector3 tempGravity;
+			if(currentState.onSolidGround){
+				tempGravity = Vector3.Lerp(Physics.gravity, -surfacePoint.normal * Physics.gravity.magnitude, frictionLerpFactor);;
+			}else{
 				tempGravity = Physics.gravity;
 			}
-//			outputAcceleration = tempAccel + ((1f - slopeLerpFactor) * Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal));
+
+			if(slopeLerpFactor > 0){
+				Vector3 downward = Vector3.ProjectOnPlane(Physics.gravity, surfacePoint.normal).normalized;
+				Vector3 downwardAccel = Vector3.Project(tempAccel, downward);
+				float accelDot = Vector3.Dot(tempAccel, downward);
+				if(accelDot < 0f){
+					tempAccel -= downwardAccel * slopeLerpFactor;
+				}
+				tempGravity = Vector3.Lerp(tempGravity, Physics.gravity, slopeLerpFactor);
+			}
+
 			outputAcceleration = tempAccel;
 			outputGravity = tempGravity;
 			outputFriction = (1f - slopeLerpFactor) * frictionLerpFactor * normalFriction;
@@ -469,11 +492,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 				Vector3 desiredVector = tempVelocity.normalized * lateralVelocity.magnitude;
 				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, moveAccelerationMax);
 			}
-//			if(Vector3.Dot(tempAccel, downward) < 0f){
-//				float x = Vector3.Dot(tempAccel, downward) / Vector3.Dot(downward, downward);
-//				tempAccel -= x * downward;
-//			}
-//			tempAccel = Vector3.ProjectOnPlane(tempAccel, surfacePoint.normal);
 			tempAccel -= Vector3.Project(tempAccel, downward);
 			currentState.velocityComesFromMove = false;
 			outputAcceleration = tempAccel;
@@ -731,6 +749,11 @@ public class PlayerMovementNEW : MonoBehaviour {
 	//0 = crouched, 1 = uncrouched
 	float GetCrouchLerpFactor () {
 		return Mathf.Clamp01((col.height - crouchHeight) / (normalHeight - crouchHeight));
+	}
+
+	//0 = walkable, 1 = not walkable
+	float GetSlopeLerpFactor (StateData currentState) {
+		return Mathf.Clamp01((currentState.surfacePoint.angle - moveSlopeSlideStartAngle) / (moveSlopeAngleLimit - moveSlopeSlideStartAngle));
 	}
 
 	//deprecated / not (entirely) functional

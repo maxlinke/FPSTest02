@@ -16,19 +16,29 @@ public class PauseMenuScript : MonoBehaviour {
 
 	public bool blockPauseToggle;
 
+	[SerializeField] Player player;
+
+	//TODO complete overhaul of this.
+	//first off : take the logic off the gui. it should be on some gamecontroller-esque object
+	//secondly : make use of an observer pattern via IPauseObserver (and maybe find a better name for it?)
+
 
 	void Start () {
 		keybinder.SetActive(false);
 		ClosePauseMenu();
 		paused = false;
-		optionsMenuStateMemory = true;	//TODO change before build
+//		optionsMenuStateMemory = true;	//TODO change before build
+		optionsMenuStateMemory = false;
 	}
 	
 	void Update () {
 		if(Input.GetKeyDown(KeyCode.Escape)){
 			if(!blockPauseToggle){
-				if(!paused) Pause();
-				else Unpause();
+				if(!paused){
+					Pause();
+				}else{
+					Unpause();
+				}
 			}
 		}
 	}
@@ -39,6 +49,7 @@ public class PauseMenuScript : MonoBehaviour {
 			Time.timeScale = 0f;
 			Cursor.lockState = CursorLockMode.None;
 			OpenPauseMenu();
+			player.Pause();
 			paused = true;
 		}
 	}
@@ -49,6 +60,7 @@ public class PauseMenuScript : MonoBehaviour {
 			timeScaleMemory = 1f;
 			Cursor.lockState = CursorLockMode.Locked;
 			ClosePauseMenu();
+			player.Unpause();
 			paused = false;
 		}
 	}

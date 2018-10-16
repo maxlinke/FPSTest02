@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using System;
 
-public class WaterBodyScript : MonoBehaviour {
+public class WaterBody : MonoBehaviour {
+
+	private const float waterDragVeclocityBoundary = 12f;
+	private const float waterDrag = 256;
 
 	public float waterLevel;
-	private float waterDragVeclocityBoundary = 12f;
-	private float waterDrag = 256;
 	private List<Rigidbody> rigidbodiesInWater;
 
 	void Start () {

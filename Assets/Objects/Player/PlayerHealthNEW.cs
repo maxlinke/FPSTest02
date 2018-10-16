@@ -9,6 +9,9 @@ public class PlayerHealthNEW : MonoBehaviour {
 	[SerializeField] float healthRegenPerSecond = 10f;
 	[SerializeField] float healthRegenLimit = 15f;
 	[SerializeField] float healthRegenDelay = 2f;
+	[SerializeField] float breathTime = 10f;
+	[SerializeField] float breathRegenTime = 2f;
+	[SerializeField] float drowningDamagePerSecond = 10f;
 
 	[Header("Armor parameters")]
 	[SerializeField] float maxArmor = 200f;
@@ -19,8 +22,10 @@ public class PlayerHealthNEW : MonoBehaviour {
 	[SerializeField] float normalGravity = 29.43f;
 
 	Rigidbody rb;
+	GameObject head;
 	float health;
 	float armor;
+	float breath;
 
 	public float Health {
 		get { return health; }
@@ -38,19 +43,41 @@ public class PlayerHealthNEW : MonoBehaviour {
 		get { return (armor / maxArmor); }
 	}
 
-	float lastDamageTime;
+	public float Breath01  {
+		get { return breath; }
+	}
 
-	public void Initialize (Rigidbody rb) {
+	float lastDamageTime;
+	bool underwater;
+
+	public void Initialize (Rigidbody rb, GameObject head) {
 		this.rb = rb;
+		this.head = head;
 		health = maxHealth;
 		armor = maxArmor;
+		breath = 1f;
 	}
 
 	void Update () {
-		ManageHealthRegen();	//TODO if alive...
+		ManageBreath(ref health, ref breath, underwater);
+		ManageHealthRegen(ref health, lastDamageTime);	//TODO if alive...
 	}
 
-	void ManageHealthRegen () {
+	void FixedUpdate () {
+		underwater = false;		//needs to be reset
+	}
+
+	void OnTriggerStay (Collider otherCollider) {
+		WaterBody waterBody = otherCollider.gameObject.GetComponent<WaterBody>();
+		if(waterBody != null){
+			//water is always in y direction. ALWAYS.
+			if(head.transform.position.y < waterBody.waterLevel){
+				underwater = true;
+			}
+		}
+	}
+
+	void ManageHealthRegen (ref float health, float lastDamageTime) {
 		if(health < healthRegenLimit){	
 			if(Time.time > (lastDamageTime + healthRegenDelay)){
 				float deltaHealth = healthRegenLimit - health;
@@ -61,6 +88,18 @@ public class PlayerHealthNEW : MonoBehaviour {
 				health += healValue;
 			}
 		}
+	}
+
+	void ManageBreath (ref float health, ref float breath, bool isUnderwater) {
+		if(isUnderwater){
+			breath -= (Time.deltaTime / breathTime);
+			if(breath <= 0f){
+				DamageDirect(drowningDamagePerSecond * Time.deltaTime);
+			}
+		}else{
+			breath += (Time.deltaTime / breathRegenTime);
+		}
+		breath = Mathf.Clamp01(breath);
 	}
 
 	public void NotifyOfLanding (Rigidbody otherRB, Vector3 lastVelocity, Vector3 currentVelocity) {

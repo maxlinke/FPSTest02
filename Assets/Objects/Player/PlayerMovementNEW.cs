@@ -132,7 +132,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 	CapsuleCollider col;
 	Rigidbody rb;
 	PlayerHealthNEW health;
-	IGUI gui;
 
 	float jumpSpeed;
 	int collisionLayerMaskForRaycasting;
@@ -141,18 +140,23 @@ public class PlayerMovementNEW : MonoBehaviour {
 	StateData lastState;
 	bool canSwim;
 
-	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthNEW health, IGUI gui) {
+	string debugInfo;
+
+	public string DebugInfo {
+		get { return debugInfo; }
+	}
+
+	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthNEW health) {
 		this.rb = rb;
 		this.col = worldCollider;
 		this.head = head;
 		this.health = health;
-		this.gui = gui;
 		contactPoints = new List<ContactPoint>();
 		SetColliderHeight(normalHeight);	//TODO load from playerprefs later (if i do a half life style campaign)
 		jumpSpeed = Mathf.Sqrt(2f * normalGravity * moveJumpHeight);
-		string logString = "";
 		collisionLayerMaskForRaycasting = LayerMaskUtils.CreateMask(this.rb.gameObject.layer);
 		collisionLayerMaskForRaycasting &= ~LayerMask.GetMask("Water");
+		debugInfo = "";
 	}
 	
 	public void ExecuteUpdate () {
@@ -203,13 +207,12 @@ public class PlayerMovementNEW : MonoBehaviour {
 			rb.velocity += slopeAccel * Time.fixedDeltaTime;
 		}
 
-		string output = "vFromMove? : " + currentState.velocityComesFromMove.ToString() + "\n";
-		output += movementType.ToString() + "\n";
+		debugInfo = "vFromMove? : " + currentState.velocityComesFromMove.ToString() + "\n";
+		debugInfo += movementType.ToString() + "\n";
 		if(currentState.onGround){
-			output += currentState.surfacePoint.angle + "°\n";
-			output += "valid? : " + currentState.onValidGround;
+			debugInfo += currentState.surfacePoint.angle + "°\n";
+			debugInfo += "valid? : " + currentState.onValidGround;
 		}
-		gui.SetInteractDisplayMessage(output);
 
 		Quaternion gravityRotation = GetGravityRotation(Physics.gravity, rb.transform.up, rb.transform.forward);
 		Quaternion newRotation = Quaternion.RotateTowards(rb.transform.rotation, gravityRotation, gravityTurnDegreesPerSecond * Time.fixedDeltaTime);
@@ -278,7 +281,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 		wallPoints = new List<ContactPoint>();
 		for(int i=0; i<contactPoints.Count; i++){
 			ContactPoint point = contactPoints[i];
-			Vector3 delta = point.point - rb.transform.position;
 			float pointAngle = Vector3.Angle(point.normal, rb.transform.up);
 			if(pointAngle > moveSlopeAngleLimit){
 				wallPoints.Add(point);
@@ -434,7 +436,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 					maxAccel = frictionAppropriateAccel;
 				}
 				tempAccel = ClampedDeltaVAcceleration(currentVelocity, desiredVector, maxAccel);
-				Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
 			}else{
 				Vector3 tempVelocity = currentVelocity + (tempAccel * Time.fixedDeltaTime);
 				if(tempVelocity.sqrMagnitude > desiredVector.sqrMagnitude){
@@ -565,7 +566,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 
 	void LadderMovement (ref StateData currentState, out Vector3 outputAcceleration, out Vector3 outputGravity, out float outputFriction) {
 		Vector3 currentVelocity = currentState.incomingOwnVelocity;
-		Vector3 inputVector = head.transform.TransformDirection(currentState.moveInput.directionalInput);
+		Vector3 inputVector = head.transform.TransformDirection(Vector3.Scale(currentState.moveInput.directionalInput, new Vector3(moveLadderHorizontalFactor, 1f, 1f)));
 		Vector3 ladderNormal = currentState.ladderPoint.normal;
 		Vector3 projectedInput = Vector3.ProjectOnPlane(inputVector, ladderNormal);
 		float desiredSpeed = GetDesiredSpeed(currentState);

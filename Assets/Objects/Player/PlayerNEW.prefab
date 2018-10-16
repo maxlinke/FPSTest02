@@ -344,6 +344,9 @@ MonoBehaviour:
   healthRegenPerSecond: 10
   healthRegenLimit: 15
   healthRegenDelay: 2
+  breathTime: 10
+  breathRegenTime: 2
+  drowningDamagePerSecond: 10
   maxArmor: 200
   fallDamageMinHeight: 10
   fallDamageMaxHeight: 50

@@ -54,8 +54,6 @@ public class PlayerViewNEW : MonoBehaviour {
 	Player player;
 	GameObject head;
 	Rigidbody rb;
-	Camera cam;
-	IGUI gui;
 
 	float tilt;
 
@@ -73,12 +71,10 @@ public class PlayerViewNEW : MonoBehaviour {
 		get { return (grabbedRB != null); }
 	}
 
-	public void Initialize (Player player, Rigidbody mainRigidbody, GameObject head, Camera cam, IGUI gui) {
+	public void Initialize (Player player, Rigidbody mainRigidbody, GameObject head) {
 		this.player = player;
 		this.rb = mainRigidbody;
 		this.head = head;
-		this.cam = cam;
-		this.gui = gui;
 		Cursor.lockState = CursorLockMode.Locked;
 		layermaskInteract = LayerMaskUtils.CreateMask("InteractCast");
 		interactTestInterval = 1f / interactTestsPerSecond;
@@ -158,7 +154,6 @@ public class PlayerViewNEW : MonoBehaviour {
 
 	public void ManageGrabbedObject () {
 		Vector3 intendedPosition = head.transform.position + (head.transform.forward * grabbedObjectMaxDistance);
-		//TODO the whole angle shenanigans
 		if((intendedPosition - grabbedRB.transform.position).magnitude > grabbedObjectDistanceFromIntendedPositionToDrop){
 			DropObject(ref grabbedRB, grabbedRBSettings, false);
 			//TODO unholster

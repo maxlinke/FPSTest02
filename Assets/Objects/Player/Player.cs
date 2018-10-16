@@ -51,9 +51,9 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		LoadKeys();
 		LoadValues();
 		gui = guiObject.GetComponent<IGUI>();
-		movement.Initialize(rb, worldCollider, head, health, gui);
-		view.Initialize(this, rb, head, cam, gui);
-		health.Initialize(rb);
+		movement.Initialize(rb, worldCollider, head, health);
+		view.Initialize(this, rb, head);
+		health.Initialize(rb, head);
 		paused = false;	//instead of this maybe GET it from somewhere
 	}
 
@@ -91,6 +91,7 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		}
 		view.ExecuteFixedUpdate();
 		movement.ExecuteFixedUpdate(moveInput);
+		gui.SetInteractDisplayMessage(movement.DebugInfo);
 		if(view.isHoldingOntoSomething) view.ManageGrabbedObject();
 	}
 

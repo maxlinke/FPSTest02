@@ -57,10 +57,10 @@ public class PlayerViewNEW : MonoBehaviour {
 
 	float tilt;
 
-	int layermaskInteract;
 	float interactTestInterval;
 	float interactTestTimer;
 
+	int layermaskInteract;
 	int collisionLayerMaskForProps;
 
 	Rigidbody grabbedRB;

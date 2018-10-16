@@ -124,6 +124,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	[SerializeField] float normalGravity = 29.43f;
 	[SerializeField] float normalFriction = 0.5f;
 	[SerializeField] float waterOffsetFromEyesToSwim = 0.2f;
+	[SerializeField] float gravityTurnDegreesPerSecond = 180f;
 
 	GameObject head;
 	CapsuleCollider col;
@@ -137,8 +138,6 @@ public class PlayerMovementNEW : MonoBehaviour {
 	List<ContactPoint> contactPoints;
 	StateData lastState;
 	bool canSwim;
-
-	Vector3 DEBUG_lastPos;
 
 	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthSystem phs, IGUI gui) {
 		this.rb = rb;
@@ -202,21 +201,17 @@ public class PlayerMovementNEW : MonoBehaviour {
 			rb.velocity += slopeAccel * Time.fixedDeltaTime;
 		}
 
-//		//debug
-//		Debug.DrawLine(DEBUG_lastPos, rb.transform.position, (currentState.onGround ? Color.green : Color.red), 10f);
-//		Debug.DrawRay(rb.transform.position, Vector3.up * 0.1f, Color.white, 10f);
-//		DEBUG_lastPos = rb.transform.position;
 		string output = "vFromMove? : " + currentState.velocityComesFromMove.ToString() + "\n";
 		output += movementType.ToString() + "\n";
 		if(currentState.onGround){
 			output += currentState.surfacePoint.angle + "°\n";
 			output += "valid? : " + currentState.onValidGround;
 		}
-//		output += "civ  " + currentState.incomingVelocity.magnitude + "\n";
-//		output += "ciov  " + currentState.incomingOwnVelocity.magnitude + "\n";
-//		output += "lov  " + lastState.outgoingVelocity.magnitude + "\n";
-//		output += "loov  " + lastState.outgoingOwnVelocity.magnitude + "\n";
 		gui.SetInteractDisplayMessage(output);
+
+		Quaternion gravityRotation = GetGravityRotation(Physics.gravity, rb.transform.up, rb.transform.forward);
+		Quaternion newRotation = Quaternion.RotateTowards(rb.transform.rotation, gravityRotation, gravityTurnDegreesPerSecond * Time.fixedDeltaTime);
+		rb.MoveRotation(newRotation);
 
 		//save and/or reset fields
 		lastState = currentState;
@@ -248,11 +243,8 @@ public class PlayerMovementNEW : MonoBehaviour {
 	void ManageCollisions (List<ContactPoint> contactPoints, MoveInput moveInput, out StateData currentState, out List<ContactPoint> wallPoints) {
 		RemoveInvalidContactPoints(ref contactPoints);
 		SurfacePoint surfacePoint = GetSurfacePoint(contactPoints);
-//		List<ContactPoint> stepPoints;
-//		DetermineWallAndStepPoints(contactPoints, surfacePoint, out wallPoints, out stepPoints);
 		DetermineWallPoints(contactPoints, surfacePoint, out wallPoints);
 		currentState = GetStateData(surfacePoint, moveInput, wallPoints, lastState);
-//		StepUpSteps(ref currentState, lastState, stepPoints);	//TODO it's fucky, so it's commented out.
 		bool overWroteStateData;
 		StickToGroundIfNecessary(ref currentState, lastState, wallPoints, out overWroteStateData);
 		if(overWroteStateData){
@@ -673,6 +665,26 @@ public class PlayerMovementNEW : MonoBehaviour {
 			otherVelocity = surfacePoint.otherCollider.attachedRigidbody.velocity;
 		}
 		return totalVelocity - otherVelocity;
+	}
+
+	Quaternion GetGravityRotation (Vector3 gravity, Vector3 currentUp, Vector3 currentForward) {
+		if(gravity.Equals(Vector3.zero)){
+			return Quaternion.LookRotation(currentForward, currentUp);
+		}else{
+			gravity = gravity.normalized;
+			currentUp = currentUp.normalized;
+			currentForward = currentForward.normalized;
+			Vector3 newUp = -gravity;
+			float dot = Vector3.Dot(currentForward, gravity);
+			Vector3 tempForward;
+			if(Mathf.Abs(dot) < 0.9f){		//TODO arbitrary, test around
+				tempForward = currentForward;
+			}else{
+				tempForward = currentForward + currentUp;
+			}
+			Vector3 newForward = Vector3.ProjectOnPlane(tempForward, newUp);
+			return Quaternion.LookRotation(newForward, newUp);
+		}
 	}
 
 	bool ColliderIsSolid (Collider collider) {

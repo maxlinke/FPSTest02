@@ -125,6 +125,8 @@ public class PlayerMovementNEW : MonoBehaviour {
 	[SerializeField] float normalFriction = 0.5f;
 	[SerializeField] float waterOffsetFromEyesToSwim = 0.2f;
 	[SerializeField] float gravityTurnDegreesPerSecond = 180f;
+	[SerializeField] float rigidbodyVelocityProjectMinMass = 40f;
+	[SerializeField] float rigidbodyVelocityProjectMaxMass = 200f;
 
 	GameObject head;
 	CapsuleCollider col;
@@ -184,7 +186,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 
 		if(Input.GetKey(KeyCode.R)) currentState.velocityComesFromMove = true;
 
-		ProjectOnAllSolidObjects(ref acceleration, wallPoints);
+		ProjectOnAllSolidAndNearSolidObjects(ref acceleration, wallPoints);
 		rb.velocity += (acceleration + gravity) * Time.fixedDeltaTime;
 		currentState.outgoingVelocity = rb.velocity;
 		currentState.outgoingOwnVelocity = GetRelativeVelocity(rb.velocity, currentState.surfacePoint);		//TODO refactor to take currentState instead of just surfacePoint
@@ -232,7 +234,8 @@ public class PlayerMovementNEW : MonoBehaviour {
 	void OnTriggerStay (Collider otherCollider) {
 		WaterBody waterBody = otherCollider.gameObject.GetComponent<WaterBody>();
 		if(waterBody != null){
-			if(head.transform.position.y - waterOffsetFromEyesToSwim < waterBody.waterLevel){		//TODO independent of head.transform.y, rather something gravity based i guess?
+			//water is always in y direction. ALWAYS.
+			if(head.transform.position.y - waterOffsetFromEyesToSwim < waterBody.waterLevel){
 				canSwim = true;
 			}
 		}
@@ -586,11 +589,20 @@ public class PlayerMovementNEW : MonoBehaviour {
 
 	//utility
 
-	void ProjectOnAllSolidObjects (ref Vector3 vector, List<ContactPoint> contacts) {
+	void ProjectOnAllSolidAndNearSolidObjects (ref Vector3 vector, List<ContactPoint> contacts) {
 		for(int i=0; i<contacts.Count; i++){
 			Vector3 normal = contacts[i].normal;
-			if(ColliderIsSolid(contacts[i].otherCollider) && (Vector3.Dot(vector, normal) < 0f)){
-				vector = Vector3.ProjectOnPlane(vector, normal);
+			Vector3 projected = Vector3.ProjectOnPlane(vector, normal);
+			if((Vector3.Dot(vector, normal) < 0f)){
+				if(ColliderIsSolid(contacts[i].otherCollider)){
+					vector = projected;
+				}else{
+					Rigidbody otherRB = contacts[i].otherCollider.attachedRigidbody;
+					float massDelta = otherRB.mass - rigidbodyVelocityProjectMinMass;
+					float maxDelta = rigidbodyVelocityProjectMaxMass - rigidbodyVelocityProjectMinMass;
+					float lerpValue = Mathf.Clamp01(massDelta / maxDelta);
+					vector = Vector3.Lerp(vector, projected, lerpValue);
+				}
 			}
 		}
 	}

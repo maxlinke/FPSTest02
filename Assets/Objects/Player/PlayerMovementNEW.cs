@@ -689,7 +689,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 			Vector3 newUp = -gravity;
 			float dot = Vector3.Dot(currentForward, gravity);
 			Vector3 tempForward;
-			if(Mathf.Abs(dot) < 0.9f){		//TODO arbitrary, test around
+			if(Mathf.Abs(dot) < 0.9f){		//arbitrary, but works :P
 				tempForward = currentForward;
 			}else{
 				tempForward = currentForward + currentUp;

@@ -11,10 +11,9 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 	[SerializeField] Camera cam;
 
 	[Header("Script Components")]
-	[SerializeField] PlayerMovementNEW playerMovement;
-	[SerializeField] PlayerViewNEW playerView;
-	[SerializeField] PlayerHealthSystem playerHealthSystem;
-	[SerializeField] PlayerWeaponSystem playerWeaponSystem;
+	[SerializeField] PlayerMovementNEW movement;
+	[SerializeField] PlayerViewNEW view;
+	[SerializeField] PlayerHealthNEW health;
 
 	[Header("Scene Objects")]
 	[SerializeField] GameObject guiObject;
@@ -52,16 +51,16 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		LoadKeys();
 		LoadValues();
 		gui = guiObject.GetComponent<IGUI>();
-		playerMovement.Initialize(rb, worldCollider, head, playerHealthSystem, gui);
-		playerView.Initialize(this, rb, head, cam, gui);
+		movement.Initialize(rb, worldCollider, head, health, gui);
+		view.Initialize(this, rb, head, cam, gui);
+		health.Initialize(rb);
 		paused = false;	//instead of this maybe GET it from somewhere
 	}
 
 	void Reset () {
-		playerMovement = GetComponentInChildren<PlayerMovementNEW>();
-		playerView = GetComponentInChildren<PlayerViewNEW>();
-		playerHealthSystem = GetComponentInChildren<PlayerHealthSystem>();
-		playerWeaponSystem = GetComponentInChildren<PlayerWeaponSystem>();
+		movement = GetComponentInChildren<PlayerMovementNEW>();
+		view = GetComponentInChildren<PlayerViewNEW>();
+		health = GetComponentInChildren<PlayerHealthNEW>();
 	}
 
 	void Update () {
@@ -75,10 +74,10 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		}
 		//not debug
 		if(!paused){
-			playerView.ExecuteUpdate(new PlayerViewNEW.ViewInput(GetLookInput(), keyInteract.GetKeyDown(), keyPrimaryFire.GetKeyDown()));
+			view.ExecuteUpdate(new PlayerViewNEW.ViewInput(GetLookInput(), keyInteract.GetKeyDown(), keyPrimaryFire.GetKeyDown()));
 			ManageToggleAndHoldInput(ref isCrouching, keyCrouchHold, keyCrouchToggle);
 			ManageToggleAndHoldInput(ref isSprinting, keySprintHold, keySprintToggle);
-			playerMovement.ExecuteUpdate();
+			movement.ExecuteUpdate();
 		}
 	}
 
@@ -90,9 +89,9 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		}else{
 			moveInput = new PlayerMovementNEW.MoveInput(Vector3.zero, false, isCrouching, isSprinting);
 		}
-		playerView.ExecuteFixedUpdate();
-		playerMovement.ExecuteFixedUpdate(moveInput);
-		if(playerView.isHoldingOntoSomething) playerView.ManageGrabbedObject();
+		view.ExecuteFixedUpdate();
+		movement.ExecuteFixedUpdate(moveInput);
+		if(view.isHoldingOntoSomething) view.ManageGrabbedObject();
 	}
 
 	//TODO on start load what components to have enabled (for example dont be able to move etc)

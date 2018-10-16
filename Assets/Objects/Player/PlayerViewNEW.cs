@@ -7,6 +7,7 @@ public class PlayerViewNEW : MonoBehaviour {
 
 	struct RigidbodySettings {
 
+		public readonly float mass;
 		public readonly bool useGravity;
 		public readonly CollisionDetectionMode collisionDetectionMode;
 		public readonly RigidbodyInterpolation interpolation;
@@ -14,6 +15,7 @@ public class PlayerViewNEW : MonoBehaviour {
 		public readonly float angularDrag;
 
 		public RigidbodySettings (Rigidbody rb) {
+			this.mass = rb.mass;
 			this.useGravity = rb.useGravity;
 			this.collisionDetectionMode = rb.collisionDetectionMode;
 			this.interpolation = rb.interpolation;
@@ -212,6 +214,7 @@ public class PlayerViewNEW : MonoBehaviour {
 
 	void PickupObject (Rigidbody grabbableRigidbody, out Rigidbody grabbedRB, out RigidbodySettings grabbedRBSettings) {
 		grabbedRBSettings = new RigidbodySettings(grabbableRigidbody);
+		grabbableRigidbody.mass = 1f;	//HACK find something proper to limit the velocity...
 		grabbableRigidbody.useGravity = false;
 		grabbableRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 		grabbableRigidbody.interpolation = RigidbodyInterpolation.Interpolate;
@@ -240,6 +243,7 @@ public class PlayerViewNEW : MonoBehaviour {
 	}
 
 	void SetRigidbodySettings (Rigidbody otherRB, RigidbodySettings settings) {
+		otherRB.mass = settings.mass;
 		otherRB.useGravity = settings.useGravity;
 		otherRB.collisionDetectionMode = settings.collisionDetectionMode;
 		otherRB.interpolation = settings.interpolation;

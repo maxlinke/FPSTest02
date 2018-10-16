@@ -131,7 +131,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	GameObject head;
 	CapsuleCollider col;
 	Rigidbody rb;
-	PlayerHealthSystem healthSystem;
+	PlayerHealthNEW health;
 	IGUI gui;
 
 	float jumpSpeed;
@@ -141,11 +141,11 @@ public class PlayerMovementNEW : MonoBehaviour {
 	StateData lastState;
 	bool canSwim;
 
-	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthSystem phs, IGUI gui) {
+	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthNEW health, IGUI gui) {
 		this.rb = rb;
 		this.col = worldCollider;
 		this.head = head;
-		this.healthSystem = phs;
+		this.health = health;
 		this.gui = gui;
 		contactPoints = new List<ContactPoint>();
 		SetColliderHeight(normalHeight);	//TODO load from playerprefs later (if i do a half life style campaign)
@@ -355,8 +355,9 @@ public class PlayerMovementNEW : MonoBehaviour {
 	void ManageFallDamage (StateData currentState, StateData lastState) {
 		if(!lastState.onGround){	//maybe just saying onground is a bad idea but it's videogamey...
 			if(currentState.onValidGround && !currentState.onLadder){
-//				healthSystem.NotifyOfLanding(lastVelocity, rb.velocity);
-				Debug.LogWarning("TODO, healthsystem and stuff");
+				Rigidbody otherRB = currentState.surfacePoint.otherCollider.attachedRigidbody;
+				health.NotifyOfLanding(otherRB, lastState.incomingVelocity, currentState.incomingVelocity);
+//				health.NotifyOfLanding(otherRB, lastState.outgoingVelocity, currentState.incomingVelocity);
 			}
 		}
 	}

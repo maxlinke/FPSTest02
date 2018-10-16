@@ -339,18 +339,18 @@ public class PlayerMovementNEW : MonoBehaviour {
 				rb.velocity = projectedVelocity + additionalGravity;
 				//debug
 				Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
-				Debug.LogError("HIT! STICKING!");
+				Debug.LogWarning("HIT! STICKING!");
 				//overwrite state data with new info
 				SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
 				currentState = GetStateData(newSurfacePoint, currentState.moveInput, new List<ContactPoint>(), lastState);
 				overwroteStateData = true;
 			}else{
 				Debug.DrawRay(hit.point, Vector3.up, Color.red, 10f);
-				Debug.LogError("HIT! No stick tho! " + hitAngleOkay + " " + angleBetweenVelocityAndHitOkay + " " + colliderSolid);
+				Debug.LogWarning("HIT! No stick tho! angle:" + hitAngleOkay + " angleBetweenVAndHit:" + angleBetweenVelocityAndHitOkay + " solid:" + colliderSolid);
 			}
 		}else{
 			Debug.DrawRay(rb.transform.position, Vector3.up, Color.red, 10f);
-			Debug.LogError("No hit, no stick...");
+			Debug.LogWarning("No hit, no stick...");
 		}
 	}
 

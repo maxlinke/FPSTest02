@@ -46,6 +46,7 @@ public class PlayerViewNEW : MonoBehaviour {
 	[Header("Grabbing")]
 	[SerializeField] float grabbedObjectMaxMass = 20f;
 	[SerializeField] float grabbedObjectMaxDistance = 2f;		//as in the distance it's held at
+	[SerializeField] float grabbedObjectMaxMoveForce = 100f;
 	[SerializeField] float grabbedObjectMaxThrowForce = 6000f;
 	[SerializeField] float grabbedObjectMaxThrowTorque = 100f;
 	[SerializeField] float grabbedObjectDistanceFromIntendedPositionToDrop = 1f;
@@ -114,7 +115,7 @@ public class PlayerViewNEW : MonoBehaviour {
 	}
 
 	public void ExecuteFixedUpdate () {
-		MatchRBRotationToHead();
+		MatchRBRotationToHead(rb);
 	}
 
 	//collisions
@@ -141,7 +142,7 @@ public class PlayerViewNEW : MonoBehaviour {
 		head.transform.Rotate(Vector3.left, deltaTilt);
 	}
 
-	void MatchRBRotationToHead () {
+	void MatchRBRotationToHead (Rigidbody rb) {
 		Vector3 headFwd = head.transform.forward;
 		Vector3 headUp = head.transform.up;
 		float lerpFactor = tilt / 90f;
@@ -170,7 +171,13 @@ public class PlayerViewNEW : MonoBehaviour {
 			properPosition = intendedPosition;
 		}
 		grabbedRB.gameObject.SetActive(true);
-		grabbedRB.velocity = rb.velocity + ((properPosition - grabbedRB.transform.position) / Time.fixedDeltaTime);
+		deltaPos = properPosition - grabbedRB.transform.position;
+		//attempt to limit the force. it does work to some degree but i'll have to take similar measures to the movement to limit the amount of force i can exert
+		float tempForce = grabbedRB.mass * (deltaPos.magnitude / Time.fixedDeltaTime);
+		if(tempForce > grabbedObjectMaxMoveForce){
+			deltaPos = deltaPos.normalized * (grabbedObjectMaxMoveForce / grabbedRB.mass) * Time.fixedDeltaTime;
+		}
+		grabbedRB.velocity = rb.velocity + (deltaPos / Time.fixedDeltaTime);
 	}
 
 	void UpdateInteractInfo () {
@@ -189,7 +196,6 @@ public class PlayerViewNEW : MonoBehaviour {
 		}
 	}
 
-	//TODO maybe use an enum to give a reason why interaction didn't work? too heavy, nothing there etc
 	void TryToInteract (out bool successful) {
 		IInteractable interactableObject;
 		Rigidbody grabbableRigidbody;
@@ -209,14 +215,14 @@ public class PlayerViewNEW : MonoBehaviour {
 
 	void PickupObject (Rigidbody grabbableRigidbody, out Rigidbody grabbedRB, out RigidbodySettings grabbedRBSettings) {
 		grabbedRBSettings = new RigidbodySettings(grabbableRigidbody);
-		grabbableRigidbody.mass = 1f;	//HACK find something proper to limit the velocity...
+//		grabbableRigidbody.mass = 1f;
 		grabbableRigidbody.useGravity = false;
 		grabbableRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 		grabbableRigidbody.interpolation = RigidbodyInterpolation.Interpolate;
 		grabbableRigidbody.drag = 0f;
 		grabbableRigidbody.angularDrag = grabbedObjectDefaultAngularDrag;
 		grabbedRB = grabbableRigidbody;
-		grabbedRB.MovePosition(head.transform.position + (head.transform.forward * grabbedObjectMaxDistance));
+//		grabbedRB.MovePosition(head.transform.position + (head.transform.forward * grabbedObjectMaxDistance));
 	}
 
 	void FillArrays (ref Vector3[] positions, ref Vector3[] rotations, Rigidbody otherRB) {

@@ -49921,6 +49921,11 @@ Prefab:
       propertyPath: guiObject
       value: 
       objectReference: {fileID: 1277057520}
+    - target: {fileID: 114753244968219480, guid: ce5fae29d56dcad47ab93d74c91735c8,
+        type: 2}
+      propertyPath: grabbedObjectDefaultAngularDrag
+      value: 20
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: ce5fae29d56dcad47ab93d74c91735c8, type: 2}
   m_IsPrefabParent: 0

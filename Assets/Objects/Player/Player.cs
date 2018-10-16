@@ -75,10 +75,10 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		}
 		//not debug
 		if(!paused){
+			playerView.ExecuteUpdate(new PlayerViewNEW.ViewInput(GetLookInput(), keyInteract.GetKeyDown(), keyPrimaryFire.GetKeyDown()));
 			ManageToggleAndHoldInput(ref isCrouching, keyCrouchHold, keyCrouchToggle);
 			ManageToggleAndHoldInput(ref isSprinting, keySprintHold, keySprintToggle);
 			playerMovement.ExecuteUpdate();
-			playerView.ExecuteUpdate(new PlayerViewNEW.ViewInput(GetLookInput(), keyInteract.GetKeyDown(), keyPrimaryFire.GetKeyDown()));
 		}
 	}
 
@@ -90,8 +90,9 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		}else{
 			moveInput = new PlayerMovementNEW.MoveInput(Vector3.zero, false, isCrouching, isSprinting);
 		}
-		playerMovement.ExecuteFixedUpdate(moveInput);
 		playerView.ExecuteFixedUpdate();
+		playerMovement.ExecuteFixedUpdate(moveInput);
+		if(playerView.isHoldingOntoSomething) playerView.ManageGrabbedObject();
 	}
 
 	//TODO on start load what components to have enabled (for example dont be able to move etc)

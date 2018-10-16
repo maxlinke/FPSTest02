@@ -308,14 +308,13 @@ MonoBehaviour:
   moveSpeedRegular: 8
   moveSpeedCrouch: 4
   moveSpeedSprint: 12
-  moveAcceleration: 128
   moveJumpHeight: 1.5
-  moveMaxSlopeAngle: 55
+  moveAccelerationMax: 128
+  moveAccelerationMin: 8
+  moveSlopeAngleLimit: 55
   moveSlopeSlideStartAngle: 45
-  moveMinSlideControl: 0.2
-  moveSlideControlFalloffHarshness: 1
   moveAirControl: 4
-  moveAirAutoDecelSpeed: 10
+  moveAirAutoDecelThreshold: 10
   moveAirAutoDeceleration: 5
   moveLadderJumpSpeed: 4
   moveLadderHorizontalFactor: 0.33
@@ -326,7 +325,7 @@ MonoBehaviour:
   eyeOffsetFromTop: 0.1
   normalGravity: 29.43
   normalFriction: 0.5
-  waterTriggerOffsetFromEyes: 0.2
+  waterOffsetFromEyesToSwim: 0.2
 --- !u!114 &114753244968219480
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -340,8 +339,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   interactRange: 3
   interactTestsPerSecond: 10
-  maxPickupObjectMass: 20
-  throwForce: 6000
+  grabbedObjectMaxMass: 20
+  grabbedObjectMaxDistance: 2
+  grabbedObjectMaxAngle: 45
+  grabbedObjectSmoothing: 2
+  grabbedObjectMaxThrowForce: 6000
+  grabbedObjectMaxThrowTorque: 100
+  grabbedObjectDistanceFromIntendedPositionToDrop: 1
+  grabbedObjectDefaultAngularDrag: 5
 --- !u!124 &124476357096721508
 Behaviour:
   m_ObjectHideFlags: 1

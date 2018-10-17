@@ -5,8 +5,10 @@
 		_Intensity ("Intensity", float) = 1
 		_Sharpness ("Sharpness", Range(0,1)) = 1
 		_Minimum ("Minimum", Range(0,1)) = 0
-		_LineHeight ("Line Height", float) = 1
-		_Speed ("Speed", float) = 60
+		_LineCount ("Lines per Unit", float) = 1
+		_LowerBound ("Line Black Level", Range(0,1)) = 0.0
+		_UpperBound ("Line White Level", Range(0,1)) = 1.0
+		_Speed ("Line Speed", float) = 60
 	}
 
 	SubShader{
@@ -30,8 +32,10 @@
 			float _Intensity;
 			float _Sharpness;
 			float _Minimum;
-			float _LineHeight;
+			float _LineCount;
 			float _Speed;
+			float _LowerBound;
+			float _UpperBound;
 
 			struct appdata{
 				float4 vertex : POSITION;
@@ -53,27 +57,18 @@
 				float3 viewDir = normalize(_WorldSpaceCameraPos - o.worldPos);
 				o.viewDot = abs(dot(viewDir, worldNormal));
 				UNITY_TRANSFER_FOG(o,o.vertex);
-
-				#if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
-					#if !defined(FOG_DISTANCE)
-						#define FOG_DEPTH 1
-					#endif
-					#define FOG_ON 1
-				#endif
-
 				return o;
 			}
 			
 			fixed4 frag (v2f i) : SV_Target{
 				float base = _Intensity * saturate(1-(i.viewDot / _Sharpness));
-				float lines = abs(sin(_LineHeight * (i.worldPos.y + _Time.x * _Speed)));
-				fixed4 col =  _Color * (_Minimum + (base * lines));
-
-				#if FOG_ON
-					UNITY_CALC_FOG_FACTOR_RAW(length(_WorldSpaceCameraPos - i.worldPos.xyz));
-					col.rgb = lerp(fixed3(0,0,0), col.rgb, saturate(unityFogFactor));
-				#endif
-
+				float t = _Time.y * _Speed;
+				float p = i.worldPos.y;
+				float lines = abs(sin(UNITY_PI * (p + t) * _LineCount));
+				float v = base * smoothstep(_LowerBound, _UpperBound, lines);
+				v = (v + _Minimum) / (1.0 + _Minimum);
+				fixed4 col =  _Color * v;
+				UNITY_APPLY_FOG_COLOR(i.fogCoord, col, fixed4(0,0,0,1));
 				return col;
 			}
 			ENDCG

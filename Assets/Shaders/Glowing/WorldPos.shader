@@ -1,16 +1,11 @@
-﻿Shader "Custom/Glowing/UV Display"{
-
-	Properties{
-		_Blue ("Blue", Range(0,1)) = 0.5
-	}
-
+﻿Shader "Custom/Glowing/WorldPos"{
+	
 	SubShader{
 
-		Tags { "RenderType"="Opaque" }
-		LOD 100
+		Tags { "Queue"="Geometry" "RenderType"="Opaque" }
 
 		Pass{
-
+		
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
@@ -18,36 +13,32 @@
 			
 			#include "UnityCG.cginc"
 
-			fixed _Blue;
-
 			struct appdata{
 				float4 vertex : POSITION;
-				float2 uv : TEXCOORD0;
 			};
 
 			struct v2f{
-				float4 vertex : SV_POSITION;
-				float2 uv : TEXCOORD0;
+				float4 pos : SV_POSITION;
+				float3 worldpos : TEXCOORD0;
 				UNITY_FOG_COORDS(1)
 			};
 			
 			v2f vert (appdata v){
 				v2f o;
-				o.vertex = UnityObjectToClipPos(v.vertex);
-				o.uv = v.uv;
-				UNITY_TRANSFER_FOG(o,o.vertex);
+				o.pos = UnityObjectToClipPos(v.vertex);
+				o.worldpos = mul(unity_ObjectToWorld, v.vertex).xyz;
+				UNITY_TRANSFER_FOG(o, o.pos);
 				return o;
 			}
 			
 			fixed4 frag (v2f i) : SV_Target{
-				fixed4 col = fixed4(i.uv, _Blue, 1);
+				fixed4 col = fixed4(frac(i.worldpos.xyz), 1);
 				UNITY_APPLY_FOG(i.fogCoord, col);
 				return col;
 			}
-
 			ENDCG
 		}
 	}
 
-	FallBack "VertexLit"
+	Fallback "VertexLit"
 }

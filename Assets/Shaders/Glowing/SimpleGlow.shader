@@ -36,36 +36,29 @@
 
 			struct v2f{
 				float4 vertex : SV_POSITION;
-				float viewDot : TEXCOORD0;
-				float4 worldPos : TEXCOORD1;
-				UNITY_FOG_COORDS(2)
+				float3 worldPos : TEXCOORD0;
+				float3 worldNormal : TEXCOORD1;
+				float3 viewDir : TEXCOORD2;
+				UNITY_FOG_COORDS(3)
 			};
 
 			v2f vert (appdata v){
 				v2f o;
 				o.vertex = UnityObjectToClipPos(v.vertex);
-				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
-				o.viewDot = abs(dot(normalize(_WorldSpaceCameraPos - o.worldPos), UnityObjectToWorldNormal(v.normal)));
+				o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
+				o.worldNormal = UnityObjectToWorldNormal(v.normal).xyz;
+				o.viewDir = normalize(_WorldSpaceCameraPos - o.worldPos);
 				UNITY_TRANSFER_FOG(o,o.vertex);
-
-				#if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
-					#if !defined(FOG_DISTANCE)
-						#define FOG_DEPTH 1
-					#endif
-					#define FOG_ON 1
-				#endif
-
 				return o;
 			}
 			
 			fixed4 frag (v2f i) : SV_Target{
-				fixed4 col = _Color * (_Minimum +  (_Intensity * saturate(1-(i.viewDot / _Sharpness))));
-
-				#if FOG_ON
-					UNITY_CALC_FOG_FACTOR_RAW(length(_WorldSpaceCameraPos - i.worldPos.xyz));
-					col.rgb = lerp(fixed3(0,0,0), col.rgb, saturate(unityFogFactor));
-				#endif
-
+				half viewDot = abs(dot(normalize(i.viewDir), normalize(i.worldNormal)));
+				half v = saturate(1-(viewDot / _Sharpness));
+				v = (v + _Minimum) / (1.0 + _Minimum);
+				v *= _Intensity;
+				fixed4 col = _Color * v;
+				UNITY_APPLY_FOG_COLOR(i.fogCoord, col, fixed4(0,0,0,1));
 				return col;
 			}
 

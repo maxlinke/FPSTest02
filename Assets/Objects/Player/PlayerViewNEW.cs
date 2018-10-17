@@ -186,10 +186,8 @@ public class PlayerViewNEW : MonoBehaviour {
 		InteractCast(out interactableObject, out grabbableRigidbody);
 		if(interactableObject != null){
 			string description = interactableObject.GetDescription();
-			Debug.Log(description);
 			//enable display + show description
 		}else if(grabbableRigidbody != null){
-			Debug.Log("pick up");
 			//enable display + show "Pick up"
 		}else{
 			//disable the display / display nothing. whatever floats your boat, man

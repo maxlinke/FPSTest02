@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEditor;
 
 public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlayerPrefKeybindObserver, IPlayerPrefSettingsObserver {
 
@@ -71,6 +72,9 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		if(Input.GetKeyDown(KeyCode.Q)){
 			if(Time.timeScale < 1f) Time.timeScale = 1f;
 			else Time.timeScale = 0.05f;
+		}
+		if(Input.GetKeyDown(KeyCode.P)){
+			EditorApplication.isPaused = !EditorApplication.isPaused;
 		}
 		//not debug
 		if(!paused){

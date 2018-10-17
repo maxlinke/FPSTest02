@@ -376,6 +376,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		}
 	}
 
+	//TODO smooth out the head's / camera's movement
 	void ManageHeight (StateData currentState) {
 		bool crouch = false;
 		bool uncrouch = false;

@@ -17,7 +17,6 @@ public class HoloPlaneAnimator : MonoBehaviour {
 	public void ApplyTextureToMaterial () {
 		CheckForDuplicates();
 		Texture2DArray texArray = CreateTextureArray();
-		Debug.Log(texArray.depth);
 		material.SetTexture(texArrayPropertyName, texArray);
 		material.SetFloat(numberPropertyName, textures.Length);
 	}

@@ -39,20 +39,4 @@ public class LayerMaskUtils {
 		return output;
 	}
 
-//	public static int GetRaycastMask (RaycastMaskType type) {
-//		string[] layerNames;
-//		switch(type){
-//		case RaycastMaskType.INTERACT :
-//			layerNames = new string[]{
-//				"Default", "Prop", "SmallProp", "Player",
-////				"Ground_Generic", "Ground_Props", "Ground_Opaque_Permeable", "Ground_Transparent_Permeable",
-//			};
-//			break;
-//		default :
-//			throw new UnityException("Unsupported RaycastMaskType \"" + type.ToString() + "\"");
-//		}
-//
-//		return LayerMask.GetMask(layerNames);
-//	}
-
 }

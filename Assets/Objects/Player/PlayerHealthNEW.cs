@@ -18,7 +18,7 @@ public class PlayerHealthNEW : MonoBehaviour {
 
 	[Header("Fall damage parameters")]
 	[SerializeField] float fallDamageMinHeight = 10f;	//0 dmg below
-	[SerializeField] float fallDamageMaxHeight = 50f;	//100 dmg above (yes, 100, so varying health doesnt mean varying fall damage)
+	[SerializeField] float fallDamageMaxHeight = 50f;	//100 dmg above (yes, 100, so varying maxHealth doesnt mean varying fall damage assuming the other parameters stay the same)
 	[SerializeField] float normalGravity = 29.43f;
 
 	Rigidbody rb;

@@ -44,7 +44,8 @@ public class ImpactLogger : MonoBehaviour {
 		Vector3 impulseSum = Vector3.zero;
 		float impulseMagnitudeSum = 0f;
 		for(int i=0; i<collisions.Count; i++){
-			Vector3 impulse = collisions[i].impulse;		//sometimes both impulses point in the same direction, sometimes not. WWHHHHHYYYYYYYYYYYYYYYYYYYYYYY maybe i have to go with relativevelocity and hope that's consistent?
+			Vector3 impulse = GetAverageNormal(collisions[i]) * collisions[i].impulse.magnitude;		//HACK super hacky, are there times when this could go horribly wrong?
+			//TODO test on moving ground or with the other collider moving past etc...
 			impulseSum += impulse;
 			impulseMagnitudeSum += impulse.magnitude;
 //			Debug.DrawRay(transform.position, impulse * impulseScale, Color.magenta, Time.fixedDeltaTime, false);
@@ -99,6 +100,14 @@ public class ImpactLogger : MonoBehaviour {
 			Debug.DrawRay(point, normal * 0.2f, Color.white, Time.fixedDeltaTime, false);
 			Debug.DrawRay(point, collision.impulse * impulseScale, Color.magenta, Time.fixedDeltaTime, false);
 		}
+	}
+
+	Vector3 GetAverageNormal (Collision collision) {
+		Vector3 normal = Vector3.zero;
+		for(int i=0; i<collision.contacts.Length; i++){
+			normal += collision.contacts[i].normal;
+		}
+		return normal.normalized;
 	}
 
 }

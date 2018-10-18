@@ -27,7 +27,7 @@ public class WaterSurfaceScript : MonoBehaviour {
 	void Start () {
 		if(smallSplash == null || normalSplash == null || col == null){
 			Debug.DrawRay(transform.position, Vector3.up * 100f, Color.red, Mathf.Infinity, false);
-			DebugDrawHelper.DrawSphere(transform.position, 0.05f, Color.red, Mathf.Infinity);
+			DebugDrawHelper.DrawSphere(transform.position, 0.05f, Color.red, Mathf.Infinity, false);
 			throw new MissingReferenceException("not all references are properly set on \"" + gameObject.name + "\"");
 		}
 	}

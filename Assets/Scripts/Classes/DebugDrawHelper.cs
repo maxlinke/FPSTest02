@@ -16,13 +16,13 @@ public class DebugDrawHelper{
 		}
 	}
 
-	public static void DrawSphere(Vector3 midPoint, float radius, Color drawColor, float drawDuration){
+	public static void DrawSphere(Vector3 midPoint, float radius, Color drawColor, float drawDuration, bool depthTest){
 		//draw circle in x-z-plane
 		Vector3 lastPoint=midPoint + new Vector3(0, 0, 1)*radius;
 		for(int i=0; i<=360; i=i+10){
 			float rad=((float)i)*Mathf.Deg2Rad;
 			Vector3 newPoint=midPoint + new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad))*radius;
-			Debug.DrawLine(lastPoint, newPoint, drawColor, drawDuration);
+			Debug.DrawLine(lastPoint, newPoint, drawColor, drawDuration, depthTest);
 			lastPoint=newPoint;
 		}
 		//draw circle in x-y-plane
@@ -30,7 +30,7 @@ public class DebugDrawHelper{
 		for(int i=0; i<=360; i=i+10){
 			float rad=((float)i)*Mathf.Deg2Rad;
 			Vector3 newPoint=midPoint + new Vector3(Mathf.Sin(rad), Mathf.Cos(rad), 0f)*radius;
-			Debug.DrawLine(lastPoint, newPoint, drawColor, drawDuration);
+			Debug.DrawLine(lastPoint, newPoint, drawColor, drawDuration, depthTest);
 			lastPoint=newPoint;
 		}
 		//draw circly in y-z-plane
@@ -38,7 +38,7 @@ public class DebugDrawHelper{
 		for(int i=0; i<=360; i=i+10){
 			float rad=((float)i)*Mathf.Deg2Rad;
 			Vector3 newPoint=midPoint + new Vector3(0f, Mathf.Sin(rad), Mathf.Cos(rad))*radius;
-			Debug.DrawLine(lastPoint, newPoint, drawColor, drawDuration);
+			Debug.DrawLine(lastPoint, newPoint, drawColor, drawDuration, depthTest);
 			lastPoint=newPoint;
 		}
 	}

@@ -18,6 +18,8 @@ public class ImpactLogger : MonoBehaviour {
 	float currentCrushValue;
 	int numberOfCollisions;
 
+	[SerializeField] Color rayColor;
+
 	Rigidbody rb;
 	List<Collision> collisions;
 
@@ -44,16 +46,28 @@ public class ImpactLogger : MonoBehaviour {
 		Vector3 impulseSum = Vector3.zero;
 		float impulseMagnitudeSum = 0f;
 		for(int i=0; i<collisions.Count; i++){
-			Vector3 impulse = GetAverageNormal(collisions[i]) * collisions[i].impulse.magnitude;		//HACK super hacky, are there times when this could go horribly wrong?
+			Vector3 normal = CollisionUtils.GetAverageNormal(collisions[i]);
+			float impulseStrength = collisions[i].impulse.magnitude;
+			Vector3 impulseDir = collisions[i].impulse.normalized;
+			Vector3 impulse =  normal * impulseStrength * Mathf.Abs(Vector3.Dot(impulseDir, normal));		//HACK super hacky, are there times when this could go horribly wrong?
+//			Vector3 impulse = collisions[i].impulse;
 			//TODO test on moving ground or with the other collider moving past etc...
+			//maybe multiply it with abs(dot(normal, impulse)) just to be sure. normalized impulse of course...
+
+			//maybe the impulse could point away if the other object is lighter? i dont know. it doesnt make any sense
+
+			//OR ... IDEA... TEST IF ANY FORCE IS POINTING INTO ANYTHING. AND IF HOW BIG THAT FORCE IS 
+			//so get the forces, dot product that shit with other contacts' normals and see what's left? maybe even calculate how much resistance that other thing would put up?
+
 			impulseSum += impulse;
 			impulseMagnitudeSum += impulse.magnitude;
-//			Debug.DrawRay(transform.position, impulse * impulseScale, Color.magenta, Time.fixedDeltaTime, false);
+//			Debug.DrawRay(transform.position, impulse.normalized * 0.3f, Color.magenta, Time.fixedDeltaTime, false);
+//			Debug.DrawRay(GetAveragePoint(collisions[i]), impulse.normalized * 0.3f, rayColor, Time.fixedDeltaTime, false);
 			currentForce = CalculateForce(collisions[i]);
 			if(currentForce > peakForceInKG){
 				peakForceInKG = currentForce;
 			}
-			DrawCollisionContacts(collisions[i]);
+//			DrawCollisionContacts(collisions[i]);
 		}
 //		Debug.DrawRay(transform.position, impulseSum * impulseScale, Color.yellow, Time.fixedDeltaTime, false);
 		float deltaMag = impulseMagnitudeSum - impulseSum.magnitude;	//this is the crushing "force"... 
@@ -73,6 +87,8 @@ public class ImpactLogger : MonoBehaviour {
 		if(gravity){
 			rb.velocity += Physics.gravity * Time.fixedDeltaTime;
 		}
+//		if(Input.GetKey(KeyCode.R)) rb.velocity = Vector3.zero;
+//		if(Input.GetKey(KeyCode.T)) rb.velocity = Vector3.down;
 		jumpInput = false;
 	}
 
@@ -100,14 +116,6 @@ public class ImpactLogger : MonoBehaviour {
 			Debug.DrawRay(point, normal * 0.2f, Color.white, Time.fixedDeltaTime, false);
 			Debug.DrawRay(point, collision.impulse * impulseScale, Color.magenta, Time.fixedDeltaTime, false);
 		}
-	}
-
-	Vector3 GetAverageNormal (Collision collision) {
-		Vector3 normal = Vector3.zero;
-		for(int i=0; i<collision.contacts.Length; i++){
-			normal += collision.contacts[i].normal;
-		}
-		return normal.normalized;
 	}
 
 }

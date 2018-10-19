@@ -21,6 +21,10 @@ public class PlayerHealthNEW : MonoBehaviour {
 	[SerializeField] float fallDamageMaxHeight = 50f;	//100 dmg above (yes, 100, so varying maxHealth doesnt mean varying fall damage assuming the other parameters stay the same)
 	[SerializeField] float normalGravity = 29.43f;
 
+	[Header("Crush damage parameters")]
+	[SerializeField] float crushForceMin = 500f;	//0 dmg below
+	[SerializeField] float crushForceMax = 2500f;	//100 damage above (why 100 see above)
+
 	Rigidbody rb;
 	GameObject head;
 	float health;
@@ -47,6 +51,7 @@ public class PlayerHealthNEW : MonoBehaviour {
 		get { return breath; }
 	}
 
+	List<Collision> collisions;
 	float lastDamageTime;
 	bool underwater;
 
@@ -56,15 +61,26 @@ public class PlayerHealthNEW : MonoBehaviour {
 		health = maxHealth;
 		armor = maxArmor;
 		breath = 1f;
+		collisions = new List<Collision>();
 	}
 
 	void Update () {
-		ManageBreath(ref health, ref breath, underwater);
+		ManageBreath(ref breath, underwater);
 		ManageHealthRegen(ref health, lastDamageTime);	//TODO if alive...
 	}
 
 	void FixedUpdate () {
+		ManageCrushDamage(collisions);
+		collisions.Clear();
 		underwater = false;		//needs to be reset
+	}
+
+	void OnCollisionEnter (Collision collision) {
+		collisions.Add(collision);
+	}
+
+	void OnCollisionStay (Collision collision) {
+		collisions.Add(collision);
 	}
 
 	void OnTriggerStay (Collider otherCollider) {
@@ -90,7 +106,7 @@ public class PlayerHealthNEW : MonoBehaviour {
 		}
 	}
 
-	void ManageBreath (ref float health, ref float breath, bool isUnderwater) {
+	void ManageBreath (ref float breath, bool isUnderwater) {
 		if(isUnderwater){
 			breath -= (Time.deltaTime / breathTime);
 			if(breath <= 0f){
@@ -100,6 +116,27 @@ public class PlayerHealthNEW : MonoBehaviour {
 			breath += (Time.deltaTime / breathRegenTime);
 		}
 		breath = Mathf.Clamp01(breath);
+	}
+
+	void ManageCrushDamage (List<Collision> collisions) {
+		if(collisions.Count > 1){
+			float impulseMagnitudeSum = 0f;
+			Vector3 impulseSum = Vector3.zero;
+			for(int i=0; i<collisions.Count; i++){
+				Vector3 normal = CollisionUtils.GetAverageNormal(collisions[i]);
+				Vector3 impulse = normal * collisions[i].impulse.magnitude * Mathf.Abs(Vector3.Dot(normal, collisions[i].impulse.normalized));
+				impulseMagnitudeSum += impulse.magnitude;
+				impulseSum += impulse;
+			}
+			float deltaMag = impulseMagnitudeSum - impulseSum.magnitude;
+			float crushForce = deltaMag / (Time.fixedDeltaTime * rb.mass);
+			float lerpFactor = (crushForce - crushForceMin) / (crushForceMax - crushForceMin);
+			if(lerpFactor > 0f){
+				float crushDamage = lerpFactor * 100f;
+				Debug.LogWarning(crushDamage + " damage from crushing");
+				DamageDirect(crushDamage);
+			}
+		}
 	}
 
 	public void NotifyOfLanding (Rigidbody otherRB, Vector3 lastVelocity, Vector3 currentVelocity) {

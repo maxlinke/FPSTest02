@@ -357,6 +357,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	void ManageFallDamage (StateData currentState, StateData lastState) {
 		if(!lastState.onGround){	//maybe just saying onground is a bad idea but it's videogamey...
 			if(currentState.onValidGround && !currentState.onLadder){
+				//TODO check for "bounce" tag or whatever i decide to do about bounce pads and the likes...
 				Rigidbody otherRB = currentState.surfacePoint.otherCollider.attachedRigidbody;
 				health.NotifyOfLanding(otherRB, lastState.incomingVelocity, currentState.incomingVelocity);
 //				health.NotifyOfLanding(otherRB, lastState.outgoingVelocity, currentState.incomingVelocity);

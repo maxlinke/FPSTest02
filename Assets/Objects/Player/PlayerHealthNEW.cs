@@ -140,7 +140,6 @@ public class PlayerHealthNEW : MonoBehaviour {
 	}
 
 	public void NotifyOfLanding (Rigidbody otherRB, Vector3 lastVelocity, Vector3 currentVelocity) {
-		//TODO check for "bounce" tag or whatever i decide to do
 		if(otherRB != null){
 			lastVelocity -= otherRB.velocity;
 			currentVelocity -= otherRB.velocity;

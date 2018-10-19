@@ -75075,9 +75075,8 @@ GameObject:
   - component: {fileID: 1195548914}
   - component: {fileID: 1195548913}
   - component: {fileID: 1195548912}
-  - component: {fileID: 1195548916}
   m_Layer: 17
-  m_Name: Sphere (impact logger)
+  m_Name: Sphere
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -75162,19 +75161,6 @@ MeshFilter:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1195548910}
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &1195548916
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 1195548910}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4fd55af554c84384f90d6ba22f274ea2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  peakForceInKG: 0
-  resetValues: 0
 --- !u!1 &1196747998
 GameObject:
   m_ObjectHideFlags: 0
@@ -95982,6 +95968,10 @@ Prefab:
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1045249279933882, guid: 9258eae34b334c2429d163431b996e34, type: 2}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: 9258eae34b334c2429d163431b996e34, type: 2}
   m_IsPrefabParent: 0
@@ -105171,9 +105161,9 @@ Prefab:
       propertyPath: m_RootOrder
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 114223045712203180, guid: adc84b0f3ee1c41479a3487067a121c4,
+    - target: {fileID: 114715523624626452, guid: adc84b0f3ee1c41479a3487067a121c4,
         type: 2}
-      propertyPath: graphicalUserInterface
+      propertyPath: graphicalUserIterface
       value: 
       objectReference: {fileID: 1277057520}
     - target: {fileID: 114501187207112260, guid: adc84b0f3ee1c41479a3487067a121c4,
@@ -105181,15 +105171,11 @@ Prefab:
       propertyPath: graphicalUserInterface
       value: 
       objectReference: {fileID: 1277057520}
-    - target: {fileID: 114715523624626452, guid: adc84b0f3ee1c41479a3487067a121c4,
+    - target: {fileID: 114223045712203180, guid: adc84b0f3ee1c41479a3487067a121c4,
         type: 2}
-      propertyPath: graphicalUserIterface
+      propertyPath: graphicalUserInterface
       value: 
       objectReference: {fileID: 1277057520}
-    - target: {fileID: 1006548693568378, guid: adc84b0f3ee1c41479a3487067a121c4, type: 2}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: adc84b0f3ee1c41479a3487067a121c4, type: 2}
   m_IsPrefabParent: 0
@@ -134283,9 +134269,8 @@ GameObject:
   - component: {fileID: 2124937067}
   - component: {fileID: 2124937066}
   - component: {fileID: 2124937065}
-  - component: {fileID: 2124937069}
   m_Layer: 17
-  m_Name: Cube (0.62m) (Impact logger)
+  m_Name: Cube (0.62m)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -134370,19 +134355,6 @@ MeshFilter:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 2124937063}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &2124937069
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 2124937063}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4fd55af554c84384f90d6ba22f274ea2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  peakForceInKG: 0
-  resetValues: 0
 --- !u!1 &2125128643
 GameObject:
   m_ObjectHideFlags: 0

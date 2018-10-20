@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class TagManager{
+public static class TagManager{
 
 	public static bool CompareTag (string tag, GameObject obj) {
 		if(obj.CompareTag(tag)){

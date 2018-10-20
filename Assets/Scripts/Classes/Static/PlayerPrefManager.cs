@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerPrefManager{
+public static class PlayerPrefManager{
 
 	/*
 	 * README:

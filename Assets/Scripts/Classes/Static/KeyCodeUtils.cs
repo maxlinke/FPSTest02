@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-public class KeyCodeUtils {
+public static class KeyCodeUtils {
 
 	public enum KeyCodeType {
 		KEYBOARD,

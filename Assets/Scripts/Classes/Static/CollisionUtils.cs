@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class CollisionUtils {
+public static class CollisionUtils {
 
 	/// <summary>
 	/// Returns force in Newtons

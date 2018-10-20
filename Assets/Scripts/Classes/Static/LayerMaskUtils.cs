@@ -2,13 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class LayerMaskUtils {
-
-//	public enum RaycastMaskType {
-//		INTERACT,
-//		BULLET,
-//		UNCROUCH
-//	}
+public static class LayerMaskUtils {
 
 	public static int CreateMask (int layer) {
 		string[] names = new string[32];

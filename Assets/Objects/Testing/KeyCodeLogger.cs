@@ -3,10 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class KeyCodeLogger : MonoBehaviour {
-
-	void Start () {
-		
-	}
 	
 	void Update () {
 		if(Input.anyKeyDown){

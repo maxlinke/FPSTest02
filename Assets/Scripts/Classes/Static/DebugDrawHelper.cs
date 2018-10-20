@@ -2,7 +2,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class DebugDrawHelper{
+public static class DebugDrawHelper{
+
+	/// <summary>
+	/// Draws an arrow from start to start+direction
+	/// </summary>
+	public static void DrawArrow (Vector3 start, Vector3 direction, float headSize, Color color, float drawDuration, bool depthTest) {
+		//TODO
+	}
 
 	public static void DrawCapsuleCollider(CapsuleCollider col, Color drawColor, float drawDuration){
 		Vector3 lowerCenter=col.transform.position + Vector3.up*col.radius;

@@ -1,19 +1,11 @@
 ﻿namespace PlayerControls {
 
-	public struct BoolProperty : IPlayerControlsProperty{
+	public class BoolProperty : PlayerControlsProperty {
 
-		private Category cat;
-		private int number;
-		private bool val;
+		public bool value;
 
-		public Category category { get { return this.cat; } }
-		public int numberInCategory { get { return number; } }
-		public bool value { get { return value; } }
-
-		public BoolProperty (Category category, int numberInCategory, bool value) {
-			this.cat = category;
-			this.number = numberInCategory;
-			this.val = value;
+		public BoolProperty (Category category, int numberInCategory, bool value) : base(category, numberInCategory) {
+			this.value = value;
 		}
 
 	}

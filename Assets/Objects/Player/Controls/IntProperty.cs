@@ -1,19 +1,11 @@
 ﻿namespace PlayerControls {
 
-	public class IntProperty : IPlayerControlsProperty{
+	public class IntProperty : PlayerControlsProperty {
 
-		private Category cat;
-		private int number;
-		private int val;
+		public int value;
 
-		public Category category { get { return this.cat; } }
-		public int numberInCategory { get { return number; } }
-		public int value { get { return value; } }
-
-		public IntProperty (Category category, int numberInCategory, int value) {
-			this.cat = category;
-			this.number = numberInCategory;
-			this.val = value;
+		public IntProperty (Category category, int numberInCategory, int value) : base(category, numberInCategory) {
+			this.value = value;
 		}
 
 	}

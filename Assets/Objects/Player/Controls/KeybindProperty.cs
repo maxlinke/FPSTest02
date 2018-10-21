@@ -1,19 +1,17 @@
-﻿namespace PlayerControls {
+﻿using UnityEngine;
 
-	public class KeybindProperty : IPlayerControlsProperty{
+namespace PlayerControls {
 
-		private Category cat;
-		private int number;
-		private DoubleKey val;
+	public class KeybindProperty : PlayerControlsProperty {
 
-		public Category category { get { return this.cat; } }
-		public int numberInCategory { get { return number; } }
-		public DoubleKey value { get { return value; } }
+		public DoubleKey value;
 
-		public KeybindProperty (Category category, int numberInCategory, DoubleKey value) {
-			this.cat = category;
-			this.number = numberInCategory;
-			this.val = value;
+		public KeybindProperty (Category category, int numberInCategory, DoubleKey value) : base(category, numberInCategory) {
+			this.value = value;
+		}
+
+		public KeybindProperty (Category category, int numberInCategory, KeyCode kcode) : base(category, numberInCategory) {
+			this.value = new DoubleKey(kcode);
 		}
 
 	}

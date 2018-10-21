@@ -1,19 +1,11 @@
 ﻿namespace PlayerControls {
 
-	public struct FloatProperty : IPlayerControlsProperty {
+	public class FloatProperty : PlayerControlsProperty {
 
-		private Category cat;
-		private int number;
-		private float val;
+		public float value;
 
-		public Category category { get { return this.cat; } }
-		public int numberInCategory { get { return number; } }
-		public float value { get { return value; } }
-
-		public FloatProperty (Category category, int numberInCategory, float value) {
-			this.cat = category;
-			this.number = numberInCategory;
-			this.val = value;
+		public FloatProperty (Category category, int numberInCategory, float value) : base(category, numberInCategory) {
+			this.value = value;
 		}
 
 	}

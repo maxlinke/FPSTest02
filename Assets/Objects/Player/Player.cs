@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using PlayerControls;
 
 public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlayerPrefKeybindObserver, IPlayerPrefSettingsObserver {
 
@@ -75,6 +76,13 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		}
 		if(Input.GetKeyDown(KeyCode.P)){
 			EditorApplication.isPaused = !EditorApplication.isPaused;
+		}
+		if(Input.GetKeyDown(KeyCode.L)){
+			string stringified = ControlScheme.DefaultControls().ToSaveableString();
+			ControlScheme loaded = ControlScheme.LoadFromString(stringified);
+			string stringified2 = loaded.ToSaveableString();
+			Debug.Log("orig\n" + stringified);
+			Debug.Log("loaded\n" + stringified2);
 		}
 		//not debug
 		if(!paused){

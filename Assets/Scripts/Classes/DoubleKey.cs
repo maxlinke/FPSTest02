@@ -2,17 +2,22 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class DoubleKey{
-
-	public DoubleKey(KeyCode firstKey, KeyCode secondKey){
-		this.primaryKeyCode = firstKey;
-		this.secondaryKeyCode = secondKey;
-	}
+public struct DoubleKey{
 
 	public KeyCode primaryKeyCode;
 	public KeyCode secondaryKeyCode;
 
-	public static DoubleKey FromPlayerPrefs(string name){
+	public DoubleKey (KeyCode firstKey, KeyCode secondKey) {
+		this.primaryKeyCode = firstKey;
+		this.secondaryKeyCode = secondKey;
+	}
+
+	public DoubleKey (KeyCode firstKey) {
+		this.primaryKeyCode = firstKey;
+		this.secondaryKeyCode = KeyCode.None;
+	}
+
+	public static DoubleKey FromPlayerPrefs (string name) {
 		string temp = PlayerPrefManager.GetString(name);
 		KeyCode primary = (KeyCode)System.Enum.Parse(typeof(KeyCode), temp);
 		temp = PlayerPrefManager.GetString(name + "_alt");
@@ -20,15 +25,15 @@ public class DoubleKey{
 		return new DoubleKey(primary, secondary);
 	}
 
-	public bool GetKeyDown(){
+	public bool GetKeyDown () {
 		return Input.GetKeyDown(primaryKeyCode) || Input.GetKeyDown(secondaryKeyCode);
 	}
 
-	public bool GetKeyUp(){
+	public bool GetKeyUp () {
 		return Input.GetKeyUp(primaryKeyCode) || Input.GetKeyUp(secondaryKeyCode);
 	}
 
-	public bool GetKey(){
+	public bool GetKey () {
 		return Input.GetKey(primaryKeyCode) || Input.GetKey(secondaryKeyCode);
 	}
 

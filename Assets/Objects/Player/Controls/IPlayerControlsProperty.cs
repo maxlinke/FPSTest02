@@ -1,9 +1,10 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿namespace PlayerControls {
 
-public interface IPlayerControlsProperty {
+	public interface IPlayerControlsProperty {
 
+		Category category { get; }
+		int numberInCategory { get; }
 
+	}
 
 }

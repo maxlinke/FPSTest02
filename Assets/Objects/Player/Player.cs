@@ -123,14 +123,14 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		PlayerPrefManager.AddObserver(this);
 	}
 
-	public void NotifyKeybindsChanged () {
-		LoadKeys();
-	}
-
-	public void NotifyPlayerSettingsChanged () {
-		LoadValues();
-	}
-
+	public void NotifyKeybindsChanged () {		//TODO replace with controlsChanged
+		LoadKeys();								//TODO remember to delete the saved controlscheme ..
+	}											//..every time i add a new key or something.. maybe catch the exception
+												//and do it automatically. but still log the "error"
+	public void NotifyPlayerSettingsChanged () {//that means btw checking is all keys are accounted for...
+		LoadValues();							//so if new keys are added but are not in the save file that should throw an error too
+	}											//alternatively new ControlScheme just sets the default and then everything is overriden
+												//category and number shouldn't change, just the values...
 	void LoadKeys () {
 		keyMoveForward = DoubleKey.FromPlayerPrefs("key_move_forward");
 		keyMoveBackward = DoubleKey.FromPlayerPrefs("key_move_backward");

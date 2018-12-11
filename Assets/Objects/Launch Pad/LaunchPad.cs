@@ -5,16 +5,19 @@ using UnityEngine;
 public class LaunchPad : MonoBehaviour, IInteractable {
 
 	public enum LaunchMode {
-		SETVELOCITY,
+		SETVELOCITYABSOLUTE,
+		SETVELOCITYRELATIVE,
 		ADDVELOCITY
 	}
 
-	[SerializeField] Vector3 launchVelocity;
+	[SerializeField] float launchSpeed;
 	[SerializeField] LaunchMode launchMode;
 	[SerializeField] Collider launchTrigger;
 	[SerializeField] GameObject[] objectsAffectedByActivation;
 	[SerializeField] bool startActivated;
 
+	Vector3 lastPos;
+	Vector3 ownVelocity;
 	bool active;
 
 	void Start () {
@@ -25,15 +28,25 @@ public class LaunchPad : MonoBehaviour, IInteractable {
 			SetActivationState (false);
 			active = false;
 		}
+		lastPos = transform.position;
+	}
+
+	void FixedUpdate () {
+		ownVelocity = transform.position - lastPos;
+		lastPos = transform.position;
 	}
 	
 	void OnTriggerEnter (Collider otherCollider) {
-		if (active) {			//TODO possibly redundant?
+		if (active) {
 			Rigidbody otherRB = otherCollider.attachedRigidbody;
 			if (otherRB != null) {
+				Vector3 launchVelocity = this.transform.up * launchSpeed;
 				switch (launchMode) {
-				case LaunchMode.SETVELOCITY:
-					otherRB.velocity = launchVelocity;		//TODO what if the launchpad is moving?
+				case LaunchMode.SETVELOCITYABSOLUTE:
+					otherRB.velocity = launchVelocity;
+					break;
+				case LaunchMode.SETVELOCITYRELATIVE:
+					otherRB.velocity = launchVelocity + ownVelocity;
 					break;
 				case LaunchMode.ADDVELOCITY:
 					otherRB.velocity += launchVelocity;

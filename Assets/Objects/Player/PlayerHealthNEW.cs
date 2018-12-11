@@ -119,7 +119,7 @@ public class PlayerHealthNEW : MonoBehaviour {
 	}
 
 	void ManageCrushDamage (List<Collision> collisions) {
-		if(collisions.Count > 1){
+		if(collisions.Count > 1){			//TODO just running into a corner (backing out and running back in) can do 40 damage...
 			float impulseMagnitudeSum = 0f;
 			Vector3 impulseSum = Vector3.zero;
 			for(int i=0; i<collisions.Count; i++){
@@ -132,9 +132,10 @@ public class PlayerHealthNEW : MonoBehaviour {
 			float crushForce = deltaMag / (Time.fixedDeltaTime * rb.mass);
 			float lerpFactor = (crushForce - crushForceMin) / (crushForceMax - crushForceMin);
 			if(lerpFactor > 0f){
-				float crushDamage = lerpFactor * 100f;
-				Debug.LogWarning(crushDamage + " damage from crushing");
-				DamageDirect(crushDamage);
+//				float crushDamage = lerpFactor * 100f;
+//				Debug.LogWarning(crushDamage + " damage from crushing");
+//				DamageDirect(crushDamage);
+				Debug.LogWarning("Crushing damage commented out");
 			}
 		}
 	}

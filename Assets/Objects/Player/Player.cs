@@ -91,7 +91,7 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		LoadKeys();
 		LoadValues();
 		gui = guiObject.GetComponent<IGUI>();
-		movement.Initialize(rb, worldCollider, head, health);
+		movement.Initialize(this, rb, worldCollider, head, health);
 		view.Initialize(this, rb, head);
 		health.Initialize(rb, head);
 		paused = false;	//instead of this maybe GET it from somewhere

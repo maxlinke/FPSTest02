@@ -128,6 +128,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	[SerializeField] float rigidbodyVelocityProjectMinMass = 40f;
 	[SerializeField] float rigidbodyVelocityProjectMaxMass = 200f;
 
+	Player player;
 	GameObject head;
 	CapsuleCollider col;
 	Rigidbody rb;
@@ -146,7 +147,8 @@ public class PlayerMovementNEW : MonoBehaviour {
 		get { return debugInfo; }
 	}
 
-	public void Initialize (Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthNEW health) {
+	public void Initialize (Player player, Rigidbody rb, CapsuleCollider worldCollider, GameObject head, PlayerHealthNEW health) {
+		this.player = player;
 		this.rb = rb;
 		this.col = worldCollider;
 		this.head = head;
@@ -160,7 +162,14 @@ public class PlayerMovementNEW : MonoBehaviour {
 	}
 	
 	public void ExecuteUpdate () {
-		//nothing :P
+		bool uniformScale = (rb.transform.localScale.x == rb.transform.localScale.y);
+		uniformScale &= (rb.transform.localScale.x == rb.transform.localScale.z);
+		uniformScale &= (rb.transform.localScale.y == rb.transform.localScale.z);
+		if(!uniformScale) throw new UnityException("Players may only be scaled uniformly!");
+		//TODO make the player support shrinking and growing (mostly just manage all the raycasts...)
+		//-> scale desired speed
+		//-> don't scale accelerations (small = zippy, big = sluggish)
+		//-> only SOME cases of radius/height have to be sized (there is no need to do the fancy actualradius stuff like in player)
 	}
 
 	public void ExecuteFixedUpdate (MoveInput moveInput) {
@@ -319,7 +328,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		if(!currentState.velocityComesFromMove) return;
 		if(wallPoints.Count > 0) return;
 //		if(currentState.incomingOwnVelocity.magnitude > moveSpeedRegular) return;	//TODO this one's new, might not be necessary
-		Vector3 start = rb.transform.position + (rb.transform.up * col.radius);
+		Vector3 start = player.Bottom + (rb.transform.up * col.radius);
 //		Vector3 dir = -lastState.surfacePoint.normal;	//this works more often
 //		Vector3 dir = lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//this is smoother... less jerky...
 		Vector3 dir = (2f * lastState.surfacePoint.normal + rb.transform.up).normalized * -1f;	//best of both worlds
@@ -335,10 +344,11 @@ public class PlayerMovementNEW : MonoBehaviour {
 				Vector3 properPosition = hit.point + (hit.normal * col.radius) - (rb.transform.up * col.radius);	
 				Vector3 projectedVelocity = Vector3.ProjectOnPlane(currentState.incomingVelocity, hit.normal).normalized * currentState.incomingVelocity.magnitude;
 				Vector3 additionalGravity = -hit.normal * Physics.gravity.magnitude * Time.fixedDeltaTime;
-				rb.MovePosition(properPosition);
+//				rb.MovePosition(properPosition);
+				player.Bottom = properPosition;
 				rb.velocity = projectedVelocity + additionalGravity;
 				//debug
-				Debug.DrawLine(rb.transform.position, properPosition, Color.yellow, 10f);
+				Debug.DrawLine(player.Bottom, properPosition, Color.yellow, 10f);
 				Debug.LogWarning("HIT! STICKING!");
 				//overwrite state data with new info
 				SurfacePoint newSurfacePoint = new SurfacePoint(hit.point, hit.normal, hit.collider, rb.transform.up);
@@ -349,7 +359,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 				Debug.LogWarning("HIT! No stick tho! angle:" + hitAngleOkay + " angleBetweenVAndHit:" + angleBetweenVelocityAndHitOkay + " solid:" + colliderSolid);
 			}
 		}else{
-			Debug.DrawRay(rb.transform.position, Vector3.up, Color.red, 10f);
+			Debug.DrawRay(player.Bottom, Vector3.up, Color.red, 10f);
 			Debug.LogWarning("No hit, no stick...");
 		}
 	}
@@ -748,7 +758,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 	}
 
 	bool CanUncrouch () {
-		Vector3 rayStart = transform.position + (rb.transform.up * (col.height - col.radius));
+		Vector3 rayStart = player.Bottom + (rb.transform.up * (col.height - col.radius));
 		Vector3 rayDir = rb.transform.up;
 		float rayLength = col.radius + (normalHeight - col.height);
 //		return !Physics.Raycast(rayStart, rayDir, rayLength, collisionLayerMaskForRaycasting);

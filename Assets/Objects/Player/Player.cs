@@ -47,6 +47,45 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 
 	bool paused;
 
+	public Vector3 Head {
+		get {
+			return head.transform.position;
+		}
+	}
+
+	public Vector3 Facing {
+		get {
+			return head.transform.forward;
+		}
+	}
+
+	public Vector3 Bottom {
+		get {
+			return GetWorldColliderCenter() - (rb.transform.up * GetActualHeight() * 0.5f);
+		} set {
+			Vector3 delta = value - this.Bottom;
+			rb.transform.position += delta;
+		}
+	}
+
+	public Vector3 Top {
+		get {
+			return GetWorldColliderCenter() + (rb.transform.up * GetActualHeight() * 0.5f);
+		} set {
+			Vector3 delta = value - this.Top;
+			rb.transform.position += delta;
+		}
+	}
+
+	public Vector3 Center {
+		get {
+			return GetWorldColliderCenter();
+		} set {
+			Vector3 delta = value - this.Center;
+			rb.transform.position += delta;
+		}
+	}
+
 	void Start () {
 		AddSelfToPlayerPrefObserverList();
 		LoadKeys();
@@ -97,6 +136,15 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		movement.ExecuteFixedUpdate(moveInput);
 		gui.SetInteractDisplayMessage(movement.DebugInfo);
 		if(view.isHoldingOntoSomething) view.ManageGrabbedObject();
+	}
+
+	void OnDrawGizmosSelected () {
+		Gizmos.color = new Color(0f,1f,0f,0.5f);
+		Gizmos.DrawSphere(this.Center, 0.1f);
+		Gizmos.color = new Color(1f,0f,0f,0.5f);
+		Gizmos.DrawSphere(this.Top, 0.1f);
+		Gizmos.color = new Color(0f,0f,1f,0.5f);
+		Gizmos.DrawSphere(this.Bottom, 0.1f);
 	}
 
 	//TODO on start load what components to have enabled (for example dont be able to move etc)
@@ -181,6 +229,34 @@ public class Player : MonoBehaviour, IPauseObserver, IPlayerPrefObserver, IPlaye
 		Vector2 controllerInput = new Vector2(controllerX, controllerY);
 		Vector2 combined = mouseInput + controllerInput;
 		return (combined * mouseSensitivity * Time.timeScale);
+	}
+
+
+	//collider data
+
+	float GetActualRadius () {
+		return worldCollider.radius * Mathf.Max(rb.transform.localScale.x, rb.transform.localScale.z);
+	}
+
+	float GetActualHeight () {
+		return GetActualHeight(GetActualRadius());
+	}
+
+	float GetActualHeight (float actualRadius) {
+		return Mathf.Max(worldCollider.height * rb.transform.localScale.y, 2f * actualRadius);
+	}
+
+	Vector3 GetWorldColliderCenter () {
+		Vector3 scaledCenter = Vector3.Scale(worldCollider.center, rb.transform.localScale);
+		return rb.transform.position + (rb.transform.TransformDirection(scaledCenter));
+	}
+
+	void CalculateColliderData (out float actualRadius, out float actualHeight, out Vector3 actualCenter) {
+		if(worldCollider.direction != 1) throw new UnityException("Only Y-Axis CapsuleColliders supported!");
+		actualRadius = worldCollider.radius * Mathf.Max(rb.transform.localScale.x, rb.transform.localScale.z);
+		actualHeight = Mathf.Max(worldCollider.height * rb.transform.localScale.y, 2f * actualRadius);
+		Vector3 scaledCenter = Vector3.Scale(worldCollider.center, rb.transform.localScale);
+		actualCenter = rb.transform.position + (rb.transform.TransformDirection(scaledCenter));
 	}
 
 }

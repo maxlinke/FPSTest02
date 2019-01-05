@@ -166,10 +166,8 @@ public class PlayerMovementNEW : MonoBehaviour {
 		uniformScale &= (rb.transform.localScale.x == rb.transform.localScale.z);
 		uniformScale &= (rb.transform.localScale.y == rb.transform.localScale.z);
 		if(!uniformScale) throw new UnityException("Players may only be scaled uniformly!");
-		//TODO make the player support shrinking and growing (mostly just manage all the raycasts...)
-		//-> scale desired speed
-		//-> don't scale accelerations (small = zippy, big = sluggish)
-		//-> only SOME cases of radius/height have to be sized (there is no need to do the fancy actualradius stuff like in player)
+		//scaling is supported on a bare bones level (crouch jumping and swimming basically)
+		//everything else is just left as is, which i think fits the very video gamey (small = incredibly fast, still a high jump, big = very sluggish... not very fun...)
 	}
 
 	public void ExecuteFixedUpdate (MoveInput moveInput) {
@@ -247,7 +245,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		WaterBody waterBody = otherCollider.gameObject.GetComponent<WaterBody>();
 		if(waterBody != null){
 			//water is always in y direction. ALWAYS.
-			if(head.transform.position.y - waterOffsetFromEyesToSwim < waterBody.waterLevel){
+			if((head.transform.position.y - (waterOffsetFromEyesToSwim * rb.transform.localScale.y)) < waterBody.waterLevel){
 				canSwim = true;
 			}
 		}
@@ -412,7 +410,7 @@ public class PlayerMovementNEW : MonoBehaviour {
 		float newHeight = Mathf.Clamp(col.height + delta, crouchHeight, normalHeight);
 		SetColliderHeight(newHeight);
 		if(!currentState.onGround){
-			rb.transform.position += (rb.transform.up * delta * -1f);
+			rb.transform.position += (rb.transform.up * delta * -1f * rb.transform.localScale.y);
 		}
 	}
 
